@@ -15,9 +15,33 @@
   <meta property="og:description" content="Digitales Wohnungsübergabeprotokoll für Einzug & Auszug – Räume, Mängel, Zählerstände, Schlüssel und Unterschrift. Deine Daten bleiben lokal im Browser, ohne Server – nur anonyme, cookielose Aufrufstatistik." />
   <meta property="og:url" content="https://wohnprotokoll.ch/" />
   <meta property="og:locale" content="de_CH" />
-  <meta name="twitter:card" content="summary" />
+  <meta property="og:image" content="https://wohnprotokoll.ch/image.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="Wohnprotokoll – Digitale Wohnungsübergabe" />
+  <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="Wohnprotokoll – Digitale Wohnungsübergabe" />
   <meta name="twitter:description" content="Digitales Wohnungsübergabeprotokoll für Einzug & Auszug – komplett lokal im Browser." />
+  <meta name="twitter:image" content="https://wohnprotokoll.ch/image.png" />
+
+  <!-- Structured Data: kostenlose Web-App -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    "name": "Wohnprotokoll",
+    "url": "https://wohnprotokoll.ch/",
+    "description": "Digitales Wohnungsübergabeprotokoll für Einzug und Auszug – Räume, Mängel, Zählerstände, Schlüssel und Unterschrift. Läuft komplett im Browser, deine Daten bleiben lokal.",
+    "applicationCategory": "BusinessApplication",
+    "operatingSystem": "Web",
+    "inLanguage": "de-CH",
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "CHF"
+    }
+  }
+  </script>
 
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='%23b3502d'/><path d='M8 22V13l8-5 8 5v9' fill='none' stroke='%23fbf9f4' stroke-width='2'/><path d='M12 22v-6h8v6' fill='none' stroke='%23fbf9f4' stroke-width='2'/></svg>" />
   <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='%23b3502d'/><path d='M8 22V13l8-5 8 5v9' fill='none' stroke='%23fbf9f4' stroke-width='2'/><path d='M12 22v-6h8v6' fill='none' stroke='%23fbf9f4' stroke-width='2'/></svg>" />
@@ -47,7 +71,27 @@
   </header>
 
   <!-- ============ APP ROOT ============ -->
-  <main id="app" class="app"></main>
+  <!-- Statischer Inhalt für Crawler & Link-Vorschau-Bots (kein JS).
+       Wird von app.js beim Start automatisch durch die App ersetzt. -->
+  <main id="app" class="app">
+    <noscript>
+      <p>Diese App benötigt JavaScript. Bitte aktiviere es in deinem Browser.</p>
+    </noscript>
+    <h1>Wohnprotokoll – Digitale Wohnungsübergabe</h1>
+    <p>
+      Erstelle ein vollständiges Wohnungsübergabeprotokoll für Einzug und Auszug –
+      direkt im Browser, ohne Anmeldung und ohne Server. Deine Daten bleiben lokal
+      auf deinem Gerät gespeichert.
+    </p>
+    <ul>
+      <li>Räume und ihren Zustand dokumentieren</li>
+      <li>Mängel mit Fotos festhalten</li>
+      <li>Zählerstände für Strom, Wasser und Gas erfassen</li>
+      <li>Schlüsselübergabe protokollieren</li>
+      <li>Digital unterschreiben und als PDF exportieren</li>
+    </ul>
+    <p>Kostenlos · keine Cookies · nur anonyme Aufrufstatistik.</p>
+  </main>
 
   <!-- ============ TOASTS ============ -->
   <div id="toasts" class="toasts" aria-live="polite"></div>
