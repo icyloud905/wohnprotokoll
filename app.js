@@ -968,7 +968,7 @@
       ["🗝️", "Schlüsselübergabe", "Art und Anzahl aller übergebenen Schlüssel festhalten."],
       ["🖋️", "Digitale Unterschrift", "Beide Parteien unterschreiben direkt im Browser – per Maus oder Finger."],
       ["🧾", "PDF-Export", "Sauberes Protokoll als PDF drucken oder speichern."],
-      ["🗄️", "Komplett offline", "Alle Daten bleiben lokal in deinem Browser – kein Server, kein Tracking."],
+      ["🗄️", "Komplett offline", "Alle Protokolldaten bleiben lokal in deinem Browser – kein Server, kein Werbe-Tracking."],
       ["🧰", "Backup & Import", "Protokolle als JSON exportieren und auf anderen Geräten importieren."],
     ];
     app.append(

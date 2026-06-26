@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="Wohnprotokoll – Digitales Wohnungsübergabeprotokoll für Einzug und Auszug. Räume, Mängel, Zählerstände, Schlüssel und Unterschrift in einem Tool. Alles lokal im Browser, ohne Server und ohne Tracking." />
+  <meta name="description" content="Wohnprotokoll – Digitales Wohnungsübergabeprotokoll für Einzug und Auszug. Räume, Mängel, Zählerstände, Schlüssel und Unterschrift in einem Tool. Deine Daten bleiben lokal im Browser, ohne Server – nur anonyme, cookielose Aufrufstatistik." />
   <meta name="theme-color" content="#b3502d" media="(prefers-color-scheme: light)" />
   <meta name="theme-color" content="#18160f" media="(prefers-color-scheme: dark)" />
   <link rel="canonical" href="https://wohnprotokoll.ch/" />
@@ -12,7 +12,7 @@
   <!-- Social Sharing (Open Graph / Twitter) -->
   <meta property="og:type" content="website" />
   <meta property="og:title" content="Wohnprotokoll – Digitale Wohnungsübergabe" />
-  <meta property="og:description" content="Digitales Wohnungsübergabeprotokoll für Einzug & Auszug – Räume, Mängel, Zählerstände, Schlüssel und Unterschrift. Komplett lokal im Browser, ohne Server, ohne Tracking." />
+  <meta property="og:description" content="Digitales Wohnungsübergabeprotokoll für Einzug & Auszug – Räume, Mängel, Zählerstände, Schlüssel und Unterschrift. Deine Daten bleiben lokal im Browser, ohne Server – nur anonyme, cookielose Aufrufstatistik." />
   <meta property="og:url" content="https://wohnprotokoll.ch/" />
   <meta property="og:locale" content="de_CH" />
   <meta name="twitter:card" content="summary" />
@@ -56,12 +56,15 @@
   <footer class="footer">
     <div class="footer__inner">
       <p>© <span id="year"></span> Wohnprotokoll · Alle Daten bleiben lokal in deinem Browser.</p>
-      <p class="footer__muted">Läuft komplett im Browser · Kein Server, kein Tracking · <a href="https://wohnprotokoll.ch/">wohnprotokoll.ch</a></p>
+      <p class="footer__muted">Läuft komplett im Browser · Kein Server · Deine Daten bleiben lokal · nur anonyme, cookielose Statistik · <a href="https://wohnprotokoll.ch/">wohnprotokoll.ch</a></p>
       <p class="footer__muted">Keine Rechtsberatung · keine Gewähr für Rechtsgültigkeit. Im Zweifel rechtlichen Rat einholen.</p>
     </div>
   </footer>
 
   <script src="storage.js"></script>
   <script src="app.js"></script>
+
+  <!-- Vercel Web Analytics (anonym, cookielos – nur Aufrufstatistik) -->
+  <script defer src="/_vercel/insights/script.js"></script>
 </body>
 </html>

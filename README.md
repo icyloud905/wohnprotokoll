@@ -1,6 +1,6 @@
 # 🏠 Wohnprotokoll
 
-Digitales **Wohnungsübergabeprotokoll** für Einzug & Auszug – komplett im Browser, ohne Server, ohne Tracking.
+Digitales **Wohnungsübergabeprotokoll** für Einzug & Auszug – komplett im Browser, ohne Server. Deine Daten bleiben lokal; nur anonyme, cookielose Aufrufstatistik.
 
 ## Was die App kann
 
