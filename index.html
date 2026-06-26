@@ -45,7 +45,14 @@
   </script>
 
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='%23b3502d'/><path d='M8 22V13l8-5 8 5v9' fill='none' stroke='%23fbf9f4' stroke-width='2'/><path d='M12 22v-6h8v6' fill='none' stroke='%23fbf9f4' stroke-width='2'/></svg>" />
-  <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='%23b3502d'/><path d='M8 22V13l8-5 8 5v9' fill='none' stroke='%23fbf9f4' stroke-width='2'/><path d='M12 22v-6h8v6' fill='none' stroke='%23fbf9f4' stroke-width='2'/></svg>" />
+  <link rel="apple-touch-icon" href="/icon.svg" />
+
+  <!-- PWA: installierbar & offline -->
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="Wohnprotokoll" />
+
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -60,13 +67,16 @@
         </svg>
         <span class="brand__name">Wohn<span>protokoll</span></span>
       </a>
-      <nav class="topnav">
+      <nav class="topnav" id="topnav">
         <a href="#/" data-link>Übersicht</a>
         <a href="#/neu" data-link>Neues Protokoll</a>
         <a href="#/info" data-link>Anleitung</a>
       </nav>
       <div class="topbar__actions">
         <button class="icon-btn" id="themeToggle" title="Hell / Dunkel umschalten" aria-label="Theme umschalten">☾</button>
+        <button class="icon-btn icon-btn--menu" id="navToggle" title="Menü" aria-label="Menü öffnen" aria-expanded="false" aria-controls="topnav">
+          <span class="burger" aria-hidden="true"></span>
+        </button>
       </div>
     </div>
   </header>

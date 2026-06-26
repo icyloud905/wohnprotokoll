@@ -63,7 +63,7 @@ body {
   background-size: 22px 22px;
 }
 
-h1, h2, h3 { font-family: var(--serif); font-weight: 600; line-height: 1.18; margin: 0 0 .4em; letter-spacing: -.01em; }
+h1, h2, h3 { font-family: var(--serif); font-weight: 600; line-height: 1.18; margin: 0 0 .4em; letter-spacing: -.01em; overflow-wrap: break-word; hyphens: auto; }
 h1 { font-size: clamp(1.7rem, 3.2vw, 2.45rem); }
 h2 { font-size: 1.4rem; }
 h3 { font-size: 1.05rem; }
@@ -102,6 +102,20 @@ a:hover { text-decoration: underline; text-underline-offset: 3px; }
   display: grid; place-items: center; transition: .15s;
 }
 .icon-btn:hover { background: var(--ink); color: var(--surface); }
+
+/* Hamburger (nur Mobile sichtbar) */
+.icon-btn--menu { display: none; }
+.burger, .burger::before, .burger::after {
+  display: block; width: 18px; height: 2px; background: currentColor; border-radius: 2px;
+  transition: transform .2s ease, opacity .2s ease;
+}
+.burger { position: relative; }
+.burger::before, .burger::after { content: ""; position: absolute; left: 0; }
+.burger::before { top: -6px; }
+.burger::after  { top: 6px; }
+.icon-btn--menu[aria-expanded="true"] .burger { background: transparent; }
+.icon-btn--menu[aria-expanded="true"] .burger::before { top: 0; transform: rotate(45deg); }
+.icon-btn--menu[aria-expanded="true"] .burger::after  { top: 0; transform: rotate(-45deg); }
 
 /* ---------- Layout ---------- */
 .app { flex: 1; max-width: var(--maxw); width: 100%; margin: 0 auto; padding: 30px 22px 70px; }
@@ -182,7 +196,8 @@ a:hover { text-decoration: underline; text-underline-offset: 3px; }
 .section-head h2 { margin: 0; }
 
 /* ---------- Protocol cards ---------- */
-.pcard { display: flex; flex-direction: column; cursor: pointer; transition: .14s; overflow: hidden; padding: 0; }
+.pcard { position: relative; display: flex; flex-direction: column; cursor: pointer; transition: .14s; overflow: visible; padding: 0; }
+.pcard__top { border-top-left-radius: var(--radius); border-top-right-radius: var(--radius); }
 .pcard:hover { border-color: var(--ink); transform: translateY(-2px); }
 .pcard__top { padding: 18px 20px 14px; }
 .pcard__type { display: inline-block; font-size: .68rem; font-weight: 800; text-transform: uppercase; letter-spacing: .12em; padding: 2px 0; margin-bottom: 12px; border-bottom: 2px solid; }
@@ -191,6 +206,36 @@ a:hover { text-decoration: underline; text-underline-offset: 3px; }
 .pcard__addr { font-family: var(--serif); font-weight: 600; font-size: 1.15rem; }
 .pcard__sub { color: var(--ink-soft); font-size: .85rem; }
 .pcard__foot { display: flex; align-items: center; justify-content: space-between; padding: 11px 20px; border-top: 1px solid var(--line); font-size: .78rem; color: var(--ink-soft); }
+
+/* ---------- Favorit-Stern & Mehrfachauswahl ---------- */
+.pcard__head-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.pcard__fav {
+  border: none; background: transparent; cursor: pointer; flex: 0 0 auto;
+  font-size: 1.3rem; line-height: 1; color: var(--line-strong);
+  padding: 0; margin: -2px -2px 0 0; transition: transform .12s, color .12s;
+}
+.pcard__fav:hover { color: var(--warn); transform: scale(1.15); }
+.pcard__fav.is-fav { color: var(--warn); }
+
+.pcard--select { cursor: pointer; }
+.pcard.is-selected { border-color: var(--accent); box-shadow: inset 0 0 0 1.5px var(--accent); }
+.pcard__check {
+  position: absolute; top: 12px; right: 12px; z-index: 2;
+  width: 24px; height: 24px; border-radius: 6px;
+  border: 1.5px solid var(--line-strong); background: var(--surface);
+  display: grid; place-items: center; font-size: .8rem; font-weight: 800; color: #fff;
+}
+.pcard.is-selected .pcard__check { background: var(--accent); border-color: var(--accent); }
+
+.selbar {
+  position: sticky; bottom: 14px; z-index: 40; margin-top: 18px;
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  background: var(--surface); border: 1.5px solid var(--ink);
+  border-radius: var(--radius); padding: 10px 14px;
+  box-shadow: 0 12px 30px -18px rgba(0,0,0,.55);
+}
+.selbar__count { font-weight: 700; font-size: .9rem; }
+.selbar .grow { flex: 1 1 auto; }
 
 /* ---------- Stepper (nummeriert, redaktionell) ---------- */
 .stepper { display: flex; gap: 0; margin: 0 0 28px; border: 1.5px solid var(--line-strong); border-radius: var(--radius); overflow: hidden; overflow-x: auto; }
@@ -319,6 +364,72 @@ textarea { resize: vertical; min-height: 80px; }
 .toast--bad { border-left-color: var(--bad); }
 @keyframes slideIn { from { transform: translateX(20px); opacity: 0; } to { transform: none; opacity: 1; } }
 
+/* ---------- Filter-Chips ---------- */
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 18px; }
+.chip {
+  border: 1.5px solid var(--line-strong); background: var(--surface); color: var(--ink-soft);
+  border-radius: 999px; padding: 6px 14px; font-weight: 600; font-size: .82rem; cursor: pointer;
+  font-family: var(--sans); transition: .14s;
+}
+.chip:hover { border-color: var(--ink); color: var(--ink); }
+.chip.active { background: var(--ink); color: var(--surface); border-color: var(--ink); }
+
+/* ---------- Speicheranzeige ---------- */
+.storagebar { display: flex; align-items: center; gap: 12px; margin: -10px 0 24px; flex-wrap: wrap; }
+.storagebar__track { flex: 0 0 140px; height: 7px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 999px; overflow: hidden; }
+.storagebar__fill { height: 100%; background: var(--ok); transition: width .4s; }
+.storagebar.is-warn .storagebar__fill { background: var(--bad); }
+.storagebar__label { font-size: .78rem; color: var(--ink-soft); font-weight: 600; }
+.storagebar.is-warn .storagebar__label { color: var(--bad); }
+
+/* ---------- Karten-Menü (⋯) ---------- */
+.cardmenu { position: relative; }
+.cardmenu__btn {
+  border: 1.5px solid transparent; background: transparent; color: var(--ink-soft);
+  width: 30px; height: 26px; border-radius: var(--radius-sm); cursor: pointer; font-size: 1.1rem; line-height: 1;
+  display: grid; place-items: center; transition: .14s;
+}
+.cardmenu__btn:hover { background: var(--surface-2); color: var(--ink); border-color: var(--line); }
+.cardmenu__list {
+  display: none; position: absolute; right: 0; bottom: calc(100% + 6px); z-index: 50;
+  min-width: 180px; background: var(--surface); border: 1.5px solid var(--ink);
+  border-radius: var(--radius); padding: 6px; box-shadow: 0 14px 32px -16px rgba(0,0,0,.55);
+}
+.cardmenu.open .cardmenu__list { display: block; }
+.cardmenu__item {
+  display: block; width: 100%; text-align: left; border: none; background: transparent;
+  color: var(--ink); font: inherit; font-size: .86rem; font-weight: 600; padding: 8px 10px;
+  border-radius: var(--radius-sm); cursor: pointer;
+}
+.cardmenu__item:hover { background: var(--surface-2); }
+.cardmenu__item.is-danger { color: var(--bad); }
+.cardmenu__item.is-danger:hover { background: var(--bad-soft); }
+
+/* ---------- Modal-Dialog ---------- */
+.modal-backdrop {
+  position: fixed; inset: 0; z-index: 300; display: grid; place-items: center;
+  background: rgba(20,16,8,.45); padding: 20px; animation: fadeIn .15s ease;
+}
+.modal {
+  background: var(--surface); border: 1.5px solid var(--ink); border-radius: var(--radius);
+  padding: 22px; max-width: 420px; width: 100%; box-shadow: 0 24px 60px -20px rgba(0,0,0,.6);
+  animation: popIn .16s ease;
+}
+.modal__title { font-family: var(--serif); margin: 0 0 8px; }
+.modal__msg { color: var(--ink-soft); margin: 0 0 18px; font-size: .92rem; }
+.modal__actions { display: flex; justify-content: flex-end; gap: 10px; }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes popIn { from { transform: translateY(8px) scale(.98); opacity: 0; } to { transform: none; opacity: 1; } }
+
+/* ---------- Toast mit Aktion ---------- */
+.toast { display: flex; align-items: center; gap: 14px; }
+.toast__action {
+  border: 1.5px solid var(--surface); background: transparent; color: var(--surface);
+  border-radius: var(--radius-sm); padding: 4px 10px; font: inherit; font-size: .82rem; font-weight: 700;
+  cursor: pointer; white-space: nowrap; flex: 0 0 auto;
+}
+.toast__action:hover { background: var(--surface); color: var(--ink); }
+
 /* ---------- Info page ---------- */
 .steps-list { counter-reset: s; list-style: none; padding: 0; display: grid; gap: 16px; }
 .steps-list li { counter-increment: s; display: flex; gap: 16px; align-items: flex-start; }
@@ -344,6 +455,81 @@ textarea { resize: vertical; min-height: 80px; }
   border: 1px solid var(--line-strong); border-radius: var(--radius-sm);
   background: var(--surface-2); color: var(--ink-soft);
   font-size: .78rem; line-height: 1.5;
+}
+
+/* ---------- Mobile / Handy-Ansicht ---------- */
+@media (max-width: 760px) {
+  /* Kein horizontales Scrollen auf dem Handy */
+  html, body { overflow-x: hidden; max-width: 100%; }
+  h1 { font-size: 1.5rem; }
+  .summary h1 { font-size: 1.45rem; }
+  .masthead h1 { font-size: 1.55rem; }
+
+  /* Topbar: Navigation als ausklappbares Menü */
+  .icon-btn--menu { display: grid; }
+  .topbar__inner { gap: 12px; padding: 0 16px; height: 58px; }
+  .topnav {
+    position: absolute; top: 100%; left: 0; right: 0;
+    flex-direction: column; gap: 0; margin: 0;
+    background: var(--surface); border-bottom: 1.5px solid var(--ink);
+    padding: 6px 16px 12px;
+    box-shadow: 0 12px 24px -16px rgba(0,0,0,.4);
+    display: none;
+  }
+  .topnav.open { display: flex; }
+  .topnav a {
+    padding: 12px 4px; font-size: 1rem; border-bottom: 1px solid var(--line);
+  }
+  .topnav a:last-child { border-bottom: none; }
+  .topnav a.active { border-bottom-color: var(--line); color: var(--accent); }
+  .topbar__actions { margin-left: auto; }
+
+  /* Schritt-Leiste umbrechen statt seitwärts scrollen */
+  .stepper { flex-wrap: wrap; overflow: visible; }
+  .step {
+    flex: 1 0 calc(50% - 1px); min-width: 0;
+    border-bottom: 1px solid var(--line);
+    gap: 8px; padding: 11px 12px; font-size: .82rem;
+  }
+  .step > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .step:nth-child(2n) { border-right: none; }
+
+  /* Mehr Platz fürs Lesen, weniger Rand */
+  .app { padding: 22px 16px 56px; }
+  .masthead { padding: 24px 18px; margin-bottom: 24px; }
+  .masthead::before { inset: 4px; }
+  .card { padding: 18px 16px; }
+  .footer__inner { padding: 18px 16px; }
+
+  /* Buttons in Reihen voll nutzbar */
+  .btn-row.row { flex-direction: column; align-items: stretch; }
+  .btn-row.row .btn { justify-content: center; }
+
+  /* Editor-Leiste umbrechen statt quetschen */
+  .editbar { flex-wrap: wrap; gap: 8px; padding: 10px 12px; }
+  .editbar .btn { flex: 1 1 auto; justify-content: center; }
+  .editbar .grow { flex-basis: 100%; order: -1; }
+
+  /* Statistik-Kacheln 2-spaltig */
+  .grid--stats { grid-template-columns: 1fr 1fr; }
+  .stat__num { font-size: 1.8rem; }
+
+  /* Unterschrift-Pad etwas niedriger */
+  .sig-pad { height: 150px; }
+
+  /* Toasts mittig unten, volle Breite */
+  .toasts { left: 12px; right: 12px; bottom: 12px; }
+  .toast { min-width: 0; }
+
+  /* Raum-Kopf: Name nicht abschneiden */
+  .room__head { flex-wrap: wrap; }
+  .room__head input.room__name { max-width: none; flex: 1 1 100%; }
+  .room__meta { margin-left: 0; }
+}
+
+@media (max-width: 400px) {
+  .grid--stats { grid-template-columns: 1fr; }
+  .brand__name { font-size: 1.15rem; }
 }
 
 @media print {

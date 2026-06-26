@@ -1,0 +1,18 @@
+{
+  "name": "Wohnprotokoll – Digitale Wohnungsübergabe",
+  "short_name": "Wohnprotokoll",
+  "description": "Digitales Wohnungsübergabeprotokoll für Einzug & Auszug – Räume, Mängel, Zählerstände, Schlüssel & Unterschrift. Komplett lokal im Browser.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#efeae0",
+  "theme_color": "#b3502d",
+  "lang": "de",
+  "dir": "ltr",
+  "categories": ["business", "productivity", "utilities"],
+  "icons": [
+    { "src": "/icon.svg", "type": "image/svg+xml", "sizes": "any", "purpose": "any" },
+    { "src": "/icon-maskable.svg", "type": "image/svg+xml", "sizes": "any", "purpose": "maskable" }
+  ]
+}

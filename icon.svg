@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Wohnprotokoll">
+  <rect width="512" height="512" rx="96" fill="#b3502d"/>
+  <path d="M128 352V208l128-80 128 80v144" fill="none" stroke="#fbf9f4" stroke-width="32" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M192 352v-96h128v96" fill="none" stroke="#fbf9f4" stroke-width="32" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

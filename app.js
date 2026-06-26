@@ -35,6 +35,79 @@
     setTimeout(() => t.remove(), 2600);
   }
 
+  // Toast mit Aktionsknopf (z. B. „Rückgängig") – bleibt länger sichtbar.
+  function toastAction(msg, actionLabel, onAction, kind = "ok") {
+    const action = h("button", { class: "toast__action" }, actionLabel);
+    const t = h("div", { class: `toast toast--${kind}` }, [h("span", {}, msg), action]);
+    let closed = false;
+    const close = () => { if (closed) return; closed = true; t.style.opacity = "0"; t.style.transform = "translateX(20px)"; t.style.transition = ".3s"; setTimeout(() => t.remove(), 300); };
+    action.addEventListener("click", () => { close(); onAction(); });
+    $("#toasts").appendChild(t);
+    setTimeout(close, 6000);
+    return t;
+  }
+
+  // Eigener Bestätigungsdialog (ersetzt natives confirm – passt zum Dokument-Look).
+  function confirmDialog({ title = "Bestätigen", message = "", confirmLabel = "Bestätigen", cancelLabel = "Abbrechen", danger = false, onConfirm }) {
+    const backdrop = h("div", { class: "modal-backdrop" });
+    const close = () => { backdrop.remove(); document.removeEventListener("keydown", onKey); };
+    function onKey(e) { if (e.key === "Escape") { e.stopPropagation(); close(); } }
+    const confirmBtn = h("button", { class: "btn btn--sm " + (danger ? "btn--danger" : "btn--primary"), onclick: () => { close(); onConfirm && onConfirm(); } }, [confirmLabel]);
+    const dialog = h("div", { class: "modal", role: "dialog", "aria-modal": "true" }, [
+      h("h3", { class: "modal__title" }, title),
+      message ? h("p", { class: "modal__msg" }, message) : null,
+      h("div", { class: "modal__actions" }, [
+        h("button", { class: "btn btn--ghost btn--sm", onclick: close }, [cancelLabel]),
+        confirmBtn,
+      ]),
+    ]);
+    backdrop.appendChild(dialog);
+    backdrop.addEventListener("click", (e) => { if (e.target === backdrop) close(); });
+    document.addEventListener("keydown", onKey);
+    document.body.appendChild(backdrop);
+    setTimeout(() => confirmBtn.focus(), 0);
+  }
+
+  // Lesbare Adresse eines Protokolls.
+  function addrLabel(p) {
+    return [p.meta.street, [p.meta.zip, p.meta.city].filter(Boolean).join(" ")].filter(Boolean).join(", ") || "Ohne Adresse";
+  }
+
+  // Einzelnes Protokoll als JSON teilen (Web-Share) oder herunterladen.
+  function exportOne(p) {
+    const data = JSON.stringify([p], null, 2);
+    const safe = ((p.meta.street || "protokoll").replace(/[^\w-]+/g, "_").slice(0, 40)) || "protokoll";
+    const filename = `wohnprotokoll-${safe}-${new Date().toISOString().slice(0, 10)}.json`;
+
+    // Garantierter Download-Fallback (funktioniert immer)
+    const download = () => {
+      const blob = new Blob([data], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = h("a", { href: url, download: filename, rel: "noopener" });
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => { a.remove(); URL.revokeObjectURL(url); }, 1000);
+      toast("Protokoll exportiert");
+    };
+
+    // Web-Share nur versuchen, wenn Datei-Sharing wirklich unterstützt wird.
+    try {
+      if (navigator.share && typeof navigator.canShare === "function") {
+        const file = new File([data], filename, { type: "application/json" });
+        if (navigator.canShare({ files: [file] })) {
+          navigator.share({ files: [file], title: "Wohnprotokoll", text: "Wohnungsübergabeprotokoll" })
+            .catch((err) => {
+              // Vom Nutzer abgebrochen → nichts tun; jeder andere Fehler → herunterladen.
+              if (!err || err.name !== "AbortError") download();
+            });
+          return;
+        }
+      }
+    } catch (e) { /* Sharing nicht verfügbar – unten Download */ }
+
+    download();
+  }
+
   function fmtDate(ts) {
     if (!ts) return "—";
     const d = new Date(ts);
@@ -95,6 +168,37 @@
     const next = Store.getTheme() === "dark" ? "light" : "dark";
     Store.setTheme(next); applyTheme(next);
   });
+
+  /* ----------------------------- Mobile-Menü ----------------------------- */
+  const navToggle = $("#navToggle");
+  const topnav = $("#topnav");
+  function setMenu(open) {
+    topnav.classList.toggle("open", open);
+    navToggle.setAttribute("aria-expanded", open ? "true" : "false");
+    navToggle.setAttribute("aria-label", open ? "Menü schließen" : "Menü öffnen");
+  }
+  navToggle.addEventListener("click", (e) => {
+    e.stopPropagation();
+    setMenu(navToggle.getAttribute("aria-expanded") !== "true");
+  });
+  // Menü schliessen bei Navigation, Klick ausserhalb oder Escape
+  topnav.addEventListener("click", (e) => { if (e.target.closest("a")) setMenu(false); });
+  document.addEventListener("click", (e) => {
+    if (topnav.classList.contains("open") && !e.target.closest(".topbar")) setMenu(false);
+  });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") setMenu(false); });
+
+  /* ----------------------------- Tastatur-Shortcuts ----------------------------- */
+  // „n" = neues Protokoll · „/" = Suche fokussieren (nur wenn man nicht gerade tippt)
+  document.addEventListener("keydown", (e) => {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    const t = e.target;
+    const typing = /^(input|textarea|select)$/i.test(t.tagName || "") || t.isContentEditable;
+    if (typing) return;
+    if (e.key === "/") { const s = $(".search__input"); if (s) { e.preventDefault(); s.focus(); } }
+    else if (e.key === "n" || e.key === "N") { location.hash = "#/neu"; }
+  });
+
   $("#year").textContent = new Date().getFullYear();
 
   /* ----------------------------- Completion ----------------------------- */
@@ -152,7 +256,7 @@
 
   /* ============================ DASHBOARD ============================ */
   function viewDashboard() {
-    const list = Store.all();
+    let list = Store.all();
 
     const hero = h("section", { class: "masthead" }, [
       h("div", { class: "stamp" }, "Übergabeprotokoll"),
@@ -177,9 +281,20 @@
       stat(maengelGesamt, "Mängel dokumentiert"),
     ]);
 
+    // ---- Mehrfachauswahl (Sammel-Löschen / -Favorit) ----
+    let selectMode = false;
+    let currentQuery = "";
+    let filter = "alle";
+    const selection = new Set();
+
+    const selectBtn = list.length
+      ? h("button", { class: "btn btn--ghost btn--sm", onclick: () => toggleSelectMode(!selectMode) }, ["Auswählen"])
+      : null;
+
     const head = h("div", { class: "section-head" }, [
       h("h2", {}, "Deine Protokolle"),
       h("div", { class: "row" }, [
+        selectBtn,
         h("button", { class: "btn btn--ghost btn--sm", onclick: doImport }, ["Import"]),
         list.length ? h("button", { class: "btn btn--ghost btn--sm", onclick: doExportAll }, ["Backup"]) : null,
         h("a", { class: "btn btn--primary btn--sm", href: "#/neu" }, ["Neu +"]),
@@ -200,34 +315,167 @@
     // Grid + Live-Suche (Adresse, Namen, Räume, Typ, Status). Ab 4 Protokollen eingeblendet.
     const grid = h("div", { class: "grid grid--cards" });
     const noMatch = h("div", { class: "card empty", style: "display:none" }, [
-      h("p", { class: "muted" }, "Kein Protokoll passt zur Suche."),
+      h("p", { class: "muted" }, "Kein Protokoll passt zu Suche oder Filter."),
     ]);
 
-    function renderCards(query) {
-      const needle = query.trim().toLowerCase();
-      const filtered = needle ? list.filter((p) => matchProtocol(p, needle)) : list;
-      grid.innerHTML = "";
-      filtered.forEach((p) => grid.appendChild(protocolCard(p)));
-      noMatch.style.display = filtered.length ? "none" : "";
-      const cnt = $("#searchCount");
-      if (cnt) cnt.textContent = needle ? `${filtered.length} von ${list.length}` : "";
+    // ---- Aktionsleiste für die Mehrfachauswahl ----
+    const selCount = h("span", { class: "selbar__count" }, "0 ausgewählt");
+    const selFav = h("button", { class: "btn btn--ghost btn--sm", onclick: bulkFavorite }, ["★ Favorit"]);
+    const selDel = h("button", { class: "btn btn--danger btn--sm", onclick: bulkDelete }, ["Löschen"]);
+    const selbar = h("div", { class: "selbar no-print", style: "display:none" }, [
+      selCount,
+      h("button", { class: "btn btn--ghost btn--sm", onclick: selectAll }, ["Alle"]),
+      h("span", { class: "grow" }),
+      selFav, selDel,
+      h("button", { class: "btn btn--ghost btn--sm", onclick: () => toggleSelectMode(false) }, ["Abbrechen"]),
+    ]);
+
+    function passesFilter(p) {
+      switch (filter) {
+        case "favoriten": return !!p.favorite;
+        case "einzug": return p.type === "einzug";
+        case "auszug": return p.type === "auszug";
+        case "entwurf": return p.status !== "abgeschlossen";
+        case "abgeschlossen": return p.status === "abgeschlossen";
+        default: return true;
+      }
+    }
+    function visibleList() {
+      const needle = currentQuery.trim().toLowerCase();
+      return list.filter((p) => passesFilter(p) && (!needle || matchProtocol(p, needle)));
     }
 
+    function updateSelbar() {
+      const n = selection.size;
+      selCount.textContent = `${n} ausgewählt`;
+      selDel.disabled = selFav.disabled = n === 0;
+    }
+
+    function toggleSelectMode(on) {
+      selectMode = on;
+      selection.clear();
+      selbar.style.display = on ? "" : "none";
+      if (selectBtn) selectBtn.textContent = on ? "Fertig" : "Auswählen";
+      updateSelbar();
+      renderCards(currentQuery);
+    }
+
+    function toggleOne(id) {
+      selection.has(id) ? selection.delete(id) : selection.add(id);
+      updateSelbar();
+      renderCards(currentQuery);
+    }
+
+    function selectAll() {
+      const visible = visibleList();
+      const allSel = visible.length && visible.every((p) => selection.has(p.id));
+      visible.forEach((p) => (allSel ? selection.delete(p.id) : selection.add(p.id)));
+      updateSelbar();
+      renderCards(currentQuery);
+    }
+
+    function rerender() { app.innerHTML = ""; viewDashboard(); }
+
+    function bulkDelete() {
+      const ids = [...selection];
+      if (!ids.length) return;
+      const word = ids.length === 1 ? "Protokoll" : "Protokolle";
+      confirmDialog({
+        title: `${ids.length} ${word} löschen?`,
+        message: "Die ausgewählten Protokolle werden entfernt – direkt wiederherstellbar.",
+        confirmLabel: "Löschen", danger: true,
+        onConfirm: () => {
+          const snapshots = ids.map((id) => Store.get(id)).filter(Boolean);
+          Store.removeMany(ids);
+          toastAction(`${ids.length} ${word} gelöscht`, "Rückgängig", () => { snapshots.forEach((s) => Store.restore(s)); rerender(); }, "bad");
+          rerender(); // aktualisiert auch die Statistik
+        },
+      });
+    }
+
+    function deleteFromCard(id) {
+      const snap = Store.get(id);
+      if (!snap) return;
+      confirmDialog({
+        title: "Protokoll löschen?",
+        message: `„${addrLabel(snap)}" wird entfernt – direkt wiederherstellbar.`,
+        confirmLabel: "Löschen", danger: true,
+        onConfirm: () => {
+          Store.remove(id);
+          toastAction("Protokoll gelöscht", "Rückgängig", () => { Store.restore(snap); rerender(); }, "bad");
+          rerender();
+        },
+      });
+    }
+
+    function bulkFavorite() {
+      const ids = [...selection];
+      if (!ids.length) return;
+      ids.forEach((id) => Store.setFavorite(id, true));
+      toast(`${ids.length} als Favorit markiert`);
+      list = Store.all();
+      toggleSelectMode(false); // verlässt Auswahl & rendert neu (Favoriten nach oben)
+    }
+
+    function onFav(p) {
+      Store.setFavorite(p.id, !p.favorite);
+      list = Store.all();
+      renderCards(currentQuery);
+    }
+
+    function renderCards(query) {
+      currentQuery = query;
+      const filtered = visibleList();
+      grid.innerHTML = "";
+      grid.classList.toggle("grid--select", selectMode);
+      filtered.forEach((p) => grid.appendChild(protocolCard(p, {
+        selectMode,
+        selected: selection.has(p.id),
+        onToggle: () => toggleOne(p.id),
+        onFav: () => onFav(p),
+        onDuplicate: () => { const c = Store.duplicate(p.id); if (c) { toast("Dupliziert"); list = Store.all(); renderCards(currentQuery); } },
+        onExport: () => exportOne(p),
+        onDelete: () => deleteFromCard(p.id),
+      })));
+      noMatch.style.display = filtered.length ? "none" : "";
+      const cnt = $("#searchCount");
+      if (cnt) cnt.textContent = (currentQuery.trim() || filter !== "alle") ? `${filtered.length} von ${list.length}` : "";
+    }
+
+    // ---- Filter-Chips ----
+    const FILTERS = [["alle", "Alle"], ["favoriten", "★ Favoriten"], ["einzug", "Einzug"], ["auszug", "Auszug"], ["entwurf", "Entwürfe"], ["abgeschlossen", "Abgeschlossen"]];
+    const chips = h("div", { class: "chips no-print" }, FILTERS.map(([val, label]) =>
+      h("button", {
+        class: "chip" + (filter === val ? " active" : ""), "data-f": val,
+        onclick: () => { filter = val; $$(".chip", chips).forEach((c) => c.classList.toggle("active", c.getAttribute("data-f") === val)); renderCards(currentQuery); },
+      }, label)
+    ));
+
+    // ---- Speicheranzeige ----
+    const u = Store.usage();
+    const storage = h("div", { class: "storagebar no-print" + (u.percent >= 80 ? " is-warn" : ""), title: `${(u.bytes / 1048576).toFixed(2)} MB von ~5 MB belegt` }, [
+      h("div", { class: "storagebar__track" }, [h("div", { class: "storagebar__fill", style: `width:${Math.max(2, u.percent)}%` })]),
+      h("span", { class: "storagebar__label" }, `Speicher ${u.percent}%${u.percent >= 80 ? " · fast voll – bitte ein Backup erstellen" : ""}`),
+    ]);
+
+    const filterRow = list.length > 1 ? chips : null;
+
+    let search = null;
     if (list.length > 3) {
       const searchInput = h("input", {
         type: "search", class: "search__input", placeholder: "Suchen: Adresse, Name, Raum, Einzug/Auszug …",
         "aria-label": "Protokolle durchsuchen",
         oninput: (e) => renderCards(e.target.value),
       });
-      const search = h("div", { class: "search no-print" }, [
+      search = h("div", { class: "search no-print" }, [
         h("span", { class: "search__icon", "aria-hidden": "true" }, "🔍"),
         searchInput,
         h("span", { id: "searchCount", class: "search__count" }, ""),
       ]);
-      app.append(hero, stats, head, search, grid, noMatch);
-    } else {
-      app.append(hero, stats, head, grid, noMatch);
     }
+
+    // null-Werte herausfiltern (append() würde sie sonst als Text „null" einfügen)
+    app.append(...[hero, stats, storage, head, filterRow, search, grid, noMatch, selbar].filter(Boolean));
 
     renderCards("");
   }
@@ -251,12 +499,32 @@
     ]);
   }
 
-  function protocolCard(p) {
+  function protocolCard(p, opts = {}) {
+    const { selectMode = false, selected = false, onToggle, onFav, onDuplicate, onExport, onDelete } = opts;
     const pct = completion(p);
-    const addr = [p.meta.street, [p.meta.zip, p.meta.city].filter(Boolean).join(" ")].filter(Boolean).join(", ") || "Ohne Adresse";
-    const card = h("div", { class: "card pcard", onclick: () => (location.hash = `#/p/${p.id}`) }, [
+    const addr = addrLabel(p);
+
+    const fav = h("button", {
+      class: "pcard__fav" + (p.favorite ? " is-fav" : ""),
+      title: p.favorite ? "Favorit entfernen" : "Als Favorit markieren",
+      "aria-label": p.favorite ? "Favorit entfernen" : "Als Favorit markieren",
+      "aria-pressed": p.favorite ? "true" : "false",
+      onclick: (e) => { e.stopPropagation(); onFav && onFav(); },
+    }, p.favorite ? "★" : "☆");
+
+    // Aktions-Menü (⋯): Öffnen, Duplizieren, Export, Löschen
+    const menu = buildCardMenu(p, { onDuplicate, onExport, onFav, onDelete });
+
+    const card = h("div", {
+      class: "card pcard" + (selectMode ? " pcard--select" : "") + (selected ? " is-selected" : ""),
+      onclick: () => { selectMode ? (onToggle && onToggle()) : (location.hash = `#/p/${p.id}`); },
+    }, [
+      selectMode ? h("span", { class: "pcard__check", "aria-hidden": "true" }, selected ? "✓" : "") : null,
       h("div", { class: "pcard__top" }, [
-        h("span", { class: `pcard__type type--${p.type}` }, p.type === "einzug" ? "Einzug" : "Auszug"),
+        h("div", { class: "pcard__head-row" }, [
+          h("span", { class: `pcard__type type--${p.type}` }, p.type === "einzug" ? "Einzug" : "Auszug"),
+          selectMode ? null : fav,
+        ]),
         h("div", { class: "pcard__addr" }, addr),
         h("div", { class: "pcard__sub" }, `${p.rooms.length} Räume · Übergabe ${fmtDateISO(p.meta.date)}`),
         h("div", { class: "spacer", style: "height:10px" }),
@@ -265,10 +533,38 @@
       ]),
       h("div", { class: "pcard__foot" }, [
         h("span", {}, [h("span", { class: `tag ${p.status === "abgeschlossen" ? "tag--ok" : ""}` }, p.status === "abgeschlossen" ? "Abgeschlossen" : "Entwurf")]),
-        h("span", {}, `bearb. ${fmtDate(p.updatedAt)}`),
+        h("div", { class: "row", style: "gap:10px;align-items:center" }, [
+          h("span", {}, `bearb. ${fmtDate(p.updatedAt)}`),
+          selectMode ? null : menu,
+        ]),
       ]),
     ]);
     return card;
+  }
+
+  // Popover-Menü für eine Protokollkarte. Schließt bei Klick außerhalb.
+  function buildCardMenu(p, { onDuplicate, onExport, onFav, onDelete }) {
+    const wrap = h("div", { class: "cardmenu" });
+    const items = [
+      ["Öffnen", () => (location.hash = `#/p/${p.id}`)],
+      ["Duplizieren", () => onDuplicate && onDuplicate()],
+      ["Teilen / Export", () => onExport && onExport()],
+      [p.favorite ? "Favorit entfernen" : "Als Favorit", () => onFav && onFav()],
+      ["Löschen", () => onDelete && onDelete(), true],
+    ];
+    const listEl = h("div", { class: "cardmenu__list" }, items.map(([label, fn, danger]) =>
+      h("button", { class: "cardmenu__item" + (danger ? " is-danger" : ""), onclick: (e) => { e.stopPropagation(); setOpen(false); fn(); } }, label)
+    ));
+    const btn = h("button", { class: "cardmenu__btn", title: "Weitere Aktionen", "aria-label": "Weitere Aktionen", "aria-haspopup": "true", onclick: (e) => { e.stopPropagation(); setOpen(!wrap.classList.contains("open")); } }, "⋯");
+    function onDocClick() { setOpen(false); }
+    function setOpen(v) {
+      wrap.classList.toggle("open", v);
+      btn.setAttribute("aria-expanded", v ? "true" : "false");
+      if (v) setTimeout(() => document.addEventListener("click", onDocClick, { once: true }), 0);
+      else document.removeEventListener("click", onDocClick);
+    }
+    wrap.append(btn, listEl);
+    return wrap;
   }
 
   /* ============================ NEU ============================ */
@@ -288,9 +584,17 @@
     { id: "raeume", label: "Räume & Mängel" },
     { id: "zaehler", label: "Zählerstände" },
     { id: "schluessel", label: "Schlüssel" },
+    { id: "kaution", label: "Kaution" },
     { id: "unterschrift", label: "Unterschrift" },
     { id: "zusammenfassung", label: "Zusammenfassung" },
   ];
+
+  // Schritt-Nummer aus der Reihenfolge ableiten – so bleibt die Nummerierung
+  // automatisch korrekt, auch wenn Sektionen ergänzt/umgestellt werden.
+  function stepKicker(id) {
+    const i = SECTIONS.findIndex((s) => s.id === id);
+    return "Schritt " + String(i + 1).padStart(2, "0");
+  }
 
   let saveWarned = false; // Speicher-voll-Warnung nur einmal pro Editor-Sitzung zeigen
   function touch() {
@@ -340,6 +644,7 @@
         h("div", { class: "muted", style: "font-size:.9rem" }, `${current.type === "einzug" ? "Einzugs" : "Auszugs"}protokoll · ${completion(current)}% vollständig`),
       ]),
       h("div", { class: "row no-print" }, [
+        h("button", { class: "btn btn--ghost btn--sm", onclick: () => exportOne(current), title: "Als JSON exportieren oder teilen" }, ["Teilen / Export"]),
         h("button", { class: "btn btn--ghost btn--sm", onclick: () => { const c = Store.duplicate(current.id); if (c) { toast("Dupliziert"); location.hash = `#/p/${c.id}`; } } }, ["Duplizieren"]),
         h("button", { class: "btn btn--danger btn--sm", onclick: deleteCurrent }, ["Löschen"]),
       ]),
@@ -371,6 +676,7 @@
       case "raeume": return p.rooms.length > 0 && p.rooms.every((r) => roomStatus(r));
       case "zaehler": return p.meters.length > 0 && p.meters.every((m) => m.value !== "");
       case "schluessel": return p.keys.length > 0;
+      case "kaution": { const d = p.deposit || {}; return !!(d.amount || d.status); }
       case "unterschrift": return !!(p.signatures.landlord && p.signatures.tenant);
       default: return false;
     }
@@ -397,6 +703,7 @@
       raeume: secRaeume,
       zaehler: secZaehler,
       schluessel: secSchluessel,
+      kaution: secKaution,
       unterschrift: secUnterschrift,
       zusammenfassung: secZusammenfassung,
     }[activeSection])(panel);
@@ -413,7 +720,7 @@
   function secStammdaten(panel) {
     const m = current.meta;
     const card = h("div", { class: "card" }, [
-      h("div", { class: "section-head" }, [h("div", {}, [h("span", { class: "kicker" }, "Schritt 01"), h("h2", { style: "margin-top:4px" }, "Stammdaten der Wohnung")])]),
+      h("div", { class: "section-head" }, [h("div", {}, [h("span", { class: "kicker" }, stepKicker("stammdaten")), h("h2", { style: "margin-top:4px" }, "Stammdaten der Wohnung")])]),
 
       h("div", { class: "field", style: "margin-bottom:18px" }, [
         h("label", {}, "Art der Übergabe"),
@@ -440,7 +747,7 @@
   /* ---------- 2. Räume & Mängel ---------- */
   function secRaeume(panel) {
     const head = h("div", { class: "section-head" }, [
-      h("div", {}, [h("span", { class: "kicker" }, "Schritt 02"), h("h2", { style: "margin-top:4px" }, "Räume & Mängel")]),
+      h("div", {}, [h("span", { class: "kicker" }, stepKicker("raeume")), h("h2", { style: "margin-top:4px" }, "Räume & Mängel")]),
       h("div", { class: "row" }, [
         presetSelect(ROOM_PRESETS, "Raum aus Vorlage …", (name) => addRoom(name)),
         h("button", { class: "btn btn--primary btn--sm", onclick: () => addRoom("Neuer Raum") }, ["Raum +"]),
@@ -454,6 +761,15 @@
       ]));
       return;
     }
+
+    // Raumübergreifende Mängelübersicht (aktualisiert sich beim Bearbeiten automatisch)
+    panel.appendChild(h("div", { class: "card no-print", style: "margin-bottom:18px" }, [
+      h("div", { class: "row row--between", style: "margin-bottom:10px" }, [
+        h("h3", { style: "margin:0;font-size:.95rem" }, "Mängelübersicht"),
+        h("span", { class: "muted", style: "font-size:.8rem" }, "automatisch aus allen Räumen"),
+      ]),
+      ...defectOverviewNodes(current),
+    ]));
 
     current.rooms.forEach((room) => panel.appendChild(roomCard(room)));
   }
@@ -473,7 +789,7 @@
       h("div", { class: "room__meta" }, [
         status ? h("span", { class: `tag tag--${status === "maengel" ? "bad" : status === "gut" ? "ok" : ""}` }, COND_LABEL[status]) : h("span", { class: "tag muted" }, "unbewertet"),
         room.defects.length ? h("span", { class: "tag tag--bad" }, `${room.defects.length} ${room.defects.length > 1 ? "Mängel" : "Mangel"}`) : null,
-        h("button", { class: "icon-x", title: "Raum löschen", onclick: () => { if (confirm(`Raum „${room.name}" löschen?`)) { current.rooms = current.rooms.filter((r) => r.id !== room.id); touch(); renderSection($("#panel")); } } }, ["✕"]),
+        h("button", { class: "icon-x", title: "Raum löschen", onclick: () => confirmDialog({ title: "Raum löschen?", message: `„${room.name || "Raum"}" samt erfasster Mängel wird entfernt.`, confirmLabel: "Löschen", danger: true, onConfirm: () => { current.rooms = current.rooms.filter((r) => r.id !== room.id); touch(); renderSection($("#panel")); } }) }, ["✕"]),
       ]),
     ]);
 
@@ -608,7 +924,7 @@
   /* ---------- 3. Zählerstände ---------- */
   function secZaehler(panel) {
     const head = h("div", { class: "section-head" }, [
-      h("div", {}, [h("span", { class: "kicker" }, "Schritt 03"), h("h2", { style: "margin-top:4px" }, "Zählerstände")]),
+      h("div", {}, [h("span", { class: "kicker" }, stepKicker("zaehler")), h("h2", { style: "margin-top:4px" }, "Zählerstände")]),
       h("div", { class: "row" }, [
         presetSelect(METER_PRESETS, "Zähler aus Vorlage …", (name) => addMeter(name)),
         h("button", { class: "btn btn--primary btn--sm", onclick: () => addMeter("") }, ["Zähler +"]),
@@ -629,23 +945,35 @@
   }
 
   function addMeter(name) {
-    current.meters.push({ id: Store.uid(), name, value: "", number: "" });
+    current.meters.push({ id: Store.uid(), name, value: "", number: "", photos: [] });
     touch(); renderSection($("#panel"));
   }
 
   function meterRow(mt) {
-    return h("div", { class: "meter-row" }, [
+    mt.photos = mt.photos || [];
+    const thumbs = h("div", { class: "defect__thumbs", style: "margin-top:6px" });
+    mt.photos.forEach((src, idx) => {
+      thumbs.appendChild(h("div", { class: "thumb" }, [
+        h("img", { src, alt: "Zählerfoto" }),
+        h("button", { title: "Foto entfernen", onclick: () => { mt.photos.splice(idx, 1); touch(); renderSection($("#panel")); } }, ["✕"]),
+      ]));
+    });
+    const fileInput = h("input", { type: "file", accept: "image/*", capture: "environment", multiple: true, onchange: (e) => handlePhotos(e, mt) });
+    const photoLabel = h("label", { class: "photo-btn" }, ["Zähler fotografieren", fileInput]);
+
+    const row = h("div", { class: "meter-row", style: "margin-bottom:6px" }, [
       input(mt.name, bindInput(mt, "name"), "z. B. Strom"),
       input(mt.value, bindInput(mt, "value"), "z. B. 24561,3"),
       input(mt.number, bindInput(mt, "number"), "Zählernr. (optional)"),
       h("button", { class: "icon-x", onclick: () => { current.meters = current.meters.filter((x) => x.id !== mt.id); touch(); renderSection($("#panel")); } }, ["✕"]),
     ]);
+    return h("div", { style: "margin-bottom:14px" }, [row, h("div", { class: "row" }, [photoLabel]), thumbs]);
   }
 
   /* ---------- 4. Schlüssel ---------- */
   function secSchluessel(panel) {
     const head = h("div", { class: "section-head" }, [
-      h("div", {}, [h("span", { class: "kicker" }, "Schritt 04"), h("h2", { style: "margin-top:4px" }, "Schlüsselübergabe")]),
+      h("div", {}, [h("span", { class: "kicker" }, stepKicker("schluessel")), h("h2", { style: "margin-top:4px" }, "Schlüsselübergabe")]),
       h("button", { class: "btn btn--primary btn--sm", onclick: () => { current.keys.push({ id: Store.uid(), name: "", count: 1 }); touch(); renderSection($("#panel")); } }, ["Schlüssel +"]),
     ]);
     const card = h("div", { class: "card" }, [head]);
@@ -674,10 +1002,39 @@
     panel.appendChild(card);
   }
 
+  /* ---------- Kaution / Depot ---------- */
+  const DEPOSIT_STATUS = { "": "Status wählen …", offen: "Noch offen", hinterlegt: "Hinterlegt / bezahlt", zurueck: "Zurückgezahlt" };
+  const DEPOSIT_STATUS_LABEL = { offen: "offen", hinterlegt: "hinterlegt", zurueck: "zurückgezahlt" };
+
+  function secKaution(panel) {
+    const d = current.deposit || (current.deposit = { amount: "", currency: "CHF", account: "", status: "", notes: "" });
+
+    const statusSel = h("select", { onchange: bindInput(d, "status") },
+      Object.entries(DEPOSIT_STATUS).map(([v, l]) => h("option", { value: v }, l)));
+    statusSel.value = d.status || "";
+
+    const currencySel = h("select", { onchange: bindInput(d, "currency") },
+      ["CHF", "EUR"].map((c) => h("option", { value: c }, c)));
+    currencySel.value = d.currency || "CHF";
+
+    const card = h("div", { class: "card" }, [
+      h("div", { class: "section-head" }, [h("div", {}, [h("span", { class: "kicker" }, stepKicker("kaution")), h("h2", { style: "margin-top:4px" }, "Kaution / Mietzinsdepot")])]),
+      h("p", { class: "muted" }, "Optional: Höhe und Status der Mietkaution festhalten. Mängel, die der Mieter:in zuzurechnen sind, können die Rückzahlung betreffen."),
+      h("div", { class: "form-grid" }, [
+        field("Betrag", input(d.amount, bindInput(d, "amount"), "z. B. 2400", "number")),
+        field("Währung", currencySel),
+        field("Status", statusSel),
+        field("Konto / IBAN (optional)", input(d.account, bindInput(d, "account"), "z. B. Sperrkonto bei …")),
+        field("Anmerkungen zur Kaution", textarea(d.notes, bindInput(d, "notes"), "z. B. Abzug für neu entstandene Mängel vereinbart …"), true),
+      ]),
+    ]);
+    panel.appendChild(card);
+  }
+
   /* ---------- 5. Unterschrift ---------- */
   function secUnterschrift(panel) {
     const card = h("div", { class: "card" }, [
-      h("div", { class: "section-head" }, [h("div", {}, [h("span", { class: "kicker" }, "Schritt 05"), h("h2", { style: "margin-top:4px" }, "Unterschriften")])]),
+      h("div", { class: "section-head" }, [h("div", {}, [h("span", { class: "kicker" }, stepKicker("unterschrift")), h("h2", { style: "margin-top:4px" }, "Unterschriften")])]),
       h("p", { class: "muted" }, "Beide Parteien unterschreiben direkt im Feld (Maus oder Finger). Die Unterschrift wird im Protokoll gespeichert."),
       h("div", { class: "sig-grid" }, [
         sigBox("landlord", "Vermieter:in", current.meta.landlord),
@@ -794,7 +1151,7 @@
     const pct = completion(p);
 
     const actions = h("div", { class: "section-head no-print" }, [
-      h("div", {}, [h("span", { class: "kicker" }, "Schritt 06"), h("h2", { style: "margin-top:4px" }, "Zusammenfassung & Export")]),
+      h("div", {}, [h("span", { class: "kicker" }, stepKicker("zusammenfassung")), h("h2", { style: "margin-top:4px" }, "Zusammenfassung & Export")]),
       h("div", { class: "row" }, [
         h("button", { class: "btn btn--ghost btn--sm", onclick: () => {
           p.status = p.status === "abgeschlossen" ? "entwurf" : "abgeschlossen";
@@ -815,6 +1172,70 @@
     ]);
 
     panel.append(actions, prog, summaryDocument(p));
+  }
+
+  /* ---------- Mängelübersicht (raumübergreifend) ---------- */
+  // Sammelt alle Mängel über alle Räume: gesonderte Mängel + als „Mängel" bewertete Checklisten-Elemente.
+  function collectDefects(p) {
+    const out = [];
+    p.rooms.forEach((r) => {
+      const roomName = r.name || "Raum";
+      (r.defects || []).forEach((d) => out.push({
+        room: roomName,
+        text: d.text || "Mangel ohne Beschreibung",
+        status: d.status || "",
+        cause: d.cause || "",
+        photos: (d.photos || []).length,
+      }));
+      (r.items || []).filter((i) => i.cond === "maengel").forEach((i) => out.push({
+        room: roomName,
+        text: (i.label || "Element") + (i.note ? " – " + i.note : ""),
+        status: "",
+        cause: "",
+        photos: 0,
+      }));
+    });
+    return out;
+  }
+
+  function defectStatusCell(status) {
+    if (status === "neu") return h("span", { class: "tag tag--bad" }, "neu");
+    if (status === "bestehend") return h("span", { class: "tag" }, "bestehend");
+    return h("span", { class: "muted" }, "—");
+  }
+
+  // Knoten (Zähl-Badges + Tabelle) – genutzt im Editor (Schritt 02) und in der Zusammenfassung.
+  function defectOverviewNodes(p) {
+    const defs = collectDefects(p);
+    if (!defs.length) {
+      return [h("p", { class: "muted", style: "margin:0" }, "Keine Mängel erfasst – die Wohnung ist mängelfrei dokumentiert.")];
+    }
+    const neu = defs.filter((d) => d.status === "neu").length;
+    const best = defs.filter((d) => d.status === "bestehend").length;
+    const withPhotos = defs.reduce((n, d) => n + d.photos, 0);
+    const badges = h("div", { class: "row", style: "gap:8px;margin-bottom:12px;flex-wrap:wrap" }, [
+      h("span", { class: "tag tag--bad" }, `${defs.length} ${defs.length === 1 ? "Mangel" : "Mängel"}`),
+      neu ? h("span", { class: "tag tag--bad" }, `${neu} neu entstanden`) : null,
+      best ? h("span", { class: "tag" }, `${best} bestehend`) : null,
+      withPhotos ? h("span", { class: "tag" }, `${withPhotos} Foto${withPhotos === 1 ? "" : "s"}`) : null,
+    ]);
+    const table = h("table", { class: "sum-table" }, [
+      h("tr", {}, [
+        h("th", { style: "width:20%" }, "Raum"),
+        h("th", {}, "Mangel"),
+        h("th", { style: "width:14%" }, "Status"),
+        h("th", { style: "width:20%" }, "Verursacher"),
+        h("th", { style: "width:56px" }, "Fotos"),
+      ]),
+      ...defs.map((d) => h("tr", {}, [
+        h("td", {}, d.room),
+        h("td", {}, d.text),
+        h("td", {}, defectStatusCell(d.status)),
+        h("td", {}, d.cause || "—"),
+        h("td", {}, d.photos ? String(d.photos) : "—"),
+      ])),
+    ]);
+    return [badges, table];
   }
 
   function summaryDocument(p) {
@@ -838,13 +1259,19 @@
         p.meta.notes ? rowTH("Anmerkungen", p.meta.notes) : null,
       ]),
 
+      h("h2", {}, "Mängelübersicht"),
+      ...defectOverviewNodes(p),
+
       h("h2", {}, "Räume"),
       p.rooms.length ? h("div", {}, p.rooms.map(sumRoom)) : h("p", { class: "muted" }, "Keine Räume erfasst."),
 
       h("h2", {}, "Zählerstände"),
-      p.meters.length ? h("table", { class: "sum-table" }, [
-        h("tr", {}, [h("th", {}, "Zähler"), h("th", {}, "Stand"), h("th", {}, "Zählernummer")]),
-        ...p.meters.map((m) => h("tr", {}, [h("td", {}, m.name || "—"), h("td", {}, m.value || "—"), h("td", {}, m.number || "—")])),
+      p.meters.length ? h("div", {}, [
+        h("table", { class: "sum-table" }, [
+          h("tr", {}, [h("th", {}, "Zähler"), h("th", {}, "Stand"), h("th", {}, "Zählernummer")]),
+          ...p.meters.map((m) => h("tr", {}, [h("td", {}, m.name || "—"), h("td", {}, m.value || "—"), h("td", {}, m.number || "—")])),
+        ]),
+        ...meterPhotos(p),
       ]) : h("p", { class: "muted" }, "Keine Zähler erfasst."),
 
       h("h2", {}, "Schlüssel"),
@@ -852,6 +1279,9 @@
         h("tr", {}, [h("th", {}, "Art"), h("th", {}, "Anzahl")]),
         ...p.keys.map((k) => h("tr", {}, [h("td", {}, k.name || "—"), h("td", {}, String(k.count || 0))])),
       ]) : h("p", { class: "muted" }, "Keine Schlüssel erfasst."),
+
+      h("h2", {}, "Kaution / Mietzinsdepot"),
+      depositSummary(p),
 
       h("h2", {}, "Unterschriften"),
       h("div", { class: "sum-sigs" }, [
@@ -908,6 +1338,22 @@
 
   function rowTH(label, val) { return h("tr", {}, [h("th", { style: "width:200px" }, label), h("td", {}, val)]); }
 
+  function meterPhotos(p) {
+    const photos = p.meters.flatMap((m) => m.photos || []);
+    return photos.length ? [h("div", { class: "sum-photos" }, photos.map((src) => h("img", { src })))] : [];
+  }
+
+  function depositSummary(p) {
+    const d = p.deposit || {};
+    if (!d.amount && !d.status && !d.account && !d.notes) return h("p", { class: "muted" }, "Keine Kaution erfasst.");
+    return h("table", { class: "sum-table" }, [
+      d.amount ? rowTH("Betrag", `${d.amount} ${d.currency || "CHF"}`) : null,
+      d.status ? rowTH("Status", DEPOSIT_STATUS_LABEL[d.status] || d.status) : null,
+      d.account ? rowTH("Konto / IBAN", d.account) : null,
+      d.notes ? rowTH("Anmerkungen", d.notes) : null,
+    ]);
+  }
+
   /* ----------------------------- Reusable UI ----------------------------- */
   function field(label, control, full = false) {
     return h("div", { class: "field" + (full ? " field--full" : "") }, [h("label", {}, label), control]);
@@ -952,23 +1398,31 @@
   /* ----------------------------- Editor: delete current ----------------------------- */
   function deleteCurrent() {
     if (!current) return;
-    if (confirm("Dieses Protokoll wirklich löschen? Das kann nicht rückgängig gemacht werden.")) {
-      Store.remove(current.id);
-      toast("Protokoll gelöscht");
-      location.hash = "#/";
-    }
+    const snap = current;
+    confirmDialog({
+      title: "Protokoll löschen?",
+      message: `„${addrLabel(snap)}" wird entfernt – du kannst das Löschen direkt rückgängig machen.`,
+      confirmLabel: "Löschen", danger: true,
+      onConfirm: () => {
+        Store.remove(snap.id);
+        location.hash = "#/";
+        toastAction("Protokoll gelöscht", "Rückgängig", () => { Store.restore(snap); location.hash = `#/p/${snap.id}`; }, "bad");
+      },
+    });
   }
 
   /* ============================ INFO ============================ */
   function viewInfo() {
     const features = [
       ["🪟", "Räume & Mängel", "Zustand pro Raum bewerten, Mängel beschreiben und mit Fotos belegen."],
-      ["📸", "Fotos direkt erfassen", "Bilder werden automatisch komprimiert und im Protokoll gespeichert."],
-      ["⚡", "Zählerstände", "Strom, Gas und Wasser inkl. Zählernummer dokumentieren."],
+      ["📋", "Mängelübersicht", "Alle Mängel raumübergreifend auf einen Blick – mit Status (neu/bestehend) und Verursacher."],
+      ["📸", "Fotos direkt erfassen", "Bilder werden automatisch komprimiert und im Protokoll gespeichert – auch für Zählerstände."],
+      ["⚡", "Zählerstände", "Strom, Gas und Wasser inkl. Zählernummer und Foto dokumentieren."],
       ["🗝️", "Schlüsselübergabe", "Art und Anzahl aller übergebenen Schlüssel festhalten."],
+      ["💰", "Kaution / Depot", "Höhe und Status der Mietkaution festhalten – relevant bei neuen Mängeln."],
       ["🖋️", "Digitale Unterschrift", "Beide Parteien unterschreiben direkt im Browser – per Maus oder Finger."],
-      ["🧾", "PDF-Export", "Sauberes Protokoll als PDF drucken oder speichern."],
-      ["🗄️", "Komplett offline", "Alle Protokolldaten bleiben lokal in deinem Browser – kein Server, kein Werbe-Tracking."],
+      ["🧾", "PDF-Export & Teilen", "Sauberes Protokoll als PDF drucken oder einzeln als Datei teilen."],
+      ["📲", "Offline & installierbar", "Als App aufs Handy installieren und ohne Internet nutzen. Daten bleiben lokal."],
       ["🧰", "Backup & Import", "Protokolle als JSON exportieren und auf anderen Geräten importieren."],
     ];
     app.append(
@@ -985,9 +1439,9 @@
         h("ol", { class: "steps-list" }, [
           li("Stammdaten erfassen", "Adresse, Datum, Vermieter:in und Mieter:in eintragen."),
           li("Räume dokumentieren", "Räume hinzufügen, Zustand bewerten und Mängel mit Fotos festhalten."),
-          li("Zähler & Schlüssel", "Zählerstände ablesen und übergebene Schlüssel notieren."),
+          li("Zähler, Schlüssel & Kaution", "Zählerstände ablesen, Schlüssel notieren und optional die Kaution festhalten."),
           li("Unterschreiben", "Beide Parteien unterschreiben digital direkt im Browser."),
-          li("PDF exportieren", "Protokoll als PDF speichern oder ausdrucken – fertig."),
+          li("PDF exportieren", "Protokoll als PDF speichern, ausdrucken oder teilen – fertig."),
         ]),
       ]),
       h("div", { class: "card" }, [
@@ -1016,6 +1470,13 @@
 
   // Globale Editor-Aktionen (Löschen) per Tastatur/Übersicht
   window.WP = { deleteCurrent, duplicate: (id) => { const c = Store.duplicate(id); if (c) { toast("Dupliziert"); navigate(); } } };
+
+  /* ============================ PWA (Offline / Installierbar) ============================ */
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("/sw.js").catch(() => { /* z. B. file:// – kein SW möglich */ });
+    });
+  }
 
   /* ============================ START ============================ */
   navigate();
