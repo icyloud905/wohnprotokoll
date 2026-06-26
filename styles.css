@@ -159,6 +159,20 @@ a:hover { text-decoration: underline; text-underline-offset: 3px; }
 .grid--2 { grid-template-columns: 1fr 1fr; }
 @media (max-width: 640px){ .grid--2 { grid-template-columns: 1fr; } }
 
+/* ---------- Suche (Dashboard) ---------- */
+.search {
+  display: flex; align-items: center; gap: 10px;
+  background: var(--surface); border: 1.5px solid var(--line-strong);
+  border-radius: var(--radius); padding: 8px 14px; margin: 0 0 18px;
+}
+.search:focus-within { border-color: var(--ink); }
+.search__icon { font-size: .95rem; opacity: .7; }
+.search__input {
+  flex: 1; border: 0; background: transparent; padding: 4px 0;
+  font: inherit; color: var(--ink); outline: none;
+}
+.search__count { font-size: .8rem; color: var(--ink-soft); white-space: nowrap; }
+
 .stat { background: var(--surface); border: 1.5px solid var(--line-strong); border-radius: var(--radius); padding: 16px 18px; }
 .stat__num { font-family: var(--serif); font-size: 2.1rem; font-weight: 600; line-height: 1; }
 .stat__label { color: var(--ink-soft); font-size: .82rem; font-weight: 600; margin-top: 6px; text-transform: uppercase; letter-spacing: .06em; }
@@ -237,6 +251,27 @@ textarea { resize: vertical; min-height: 80px; }
 .photo-btn { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; font-size: .82rem; font-weight: 600; color: var(--accent); padding: 6px 12px; border: 1.5px dashed var(--accent); border-radius: var(--radius-sm); }
 .photo-btn input { display: none; }
 .defect__marker { color: var(--warn); font-weight: 800; padding-top: 9px; font-family: var(--mono); }
+.defect__meta { display: grid; grid-template-columns: minmax(160px, 220px) 1fr; gap: 10px; margin-top: 8px; }
+@media (max-width: 560px){ .defect__meta { grid-template-columns: 1fr; } }
+.defect__select { padding: 8px 10px; border: 1.5px solid var(--line-strong); border-radius: var(--radius-sm); background: var(--surface); color: var(--ink); font-family: inherit; font-size: .9rem; }
+
+/* ---------- Element-Checkliste ---------- */
+.items { border-top: 1px solid var(--line); }
+.item-row { display: grid; grid-template-columns: minmax(130px, 1.5fr) auto minmax(120px, 1.4fr) auto; gap: 10px; align-items: center; padding: 7px 0; border-bottom: 1px solid var(--line); }
+.item-row--head { padding: 4px 0; border-bottom: 1.5px solid var(--line-strong); }
+.item-row input { padding: 7px 10px; }
+@media (max-width: 640px){
+  .item-row { grid-template-columns: 1fr auto auto; }
+  .item-row > :nth-child(3) { grid-column: 1 / -1; }
+  .item-row--head { display: none; }
+}
+.cond-mini { display: inline-flex; border: 1.5px solid var(--line-strong); border-radius: var(--radius-sm); overflow: hidden; }
+.cond-mini__btn { width: 32px; height: 32px; border: none; border-right: 1.5px solid var(--line-strong); background: var(--surface); color: var(--ink-soft); font-weight: 800; font-size: .8rem; cursor: pointer; transition: .12s; font-family: var(--mono); }
+.cond-mini__btn:last-child { border-right: none; }
+.cond-mini__btn:hover { background: var(--surface-2); }
+.cond-mini__btn[data-cond="gut"].active { background: var(--ok); color: #fff; }
+.cond-mini__btn[data-cond="mittel"].active { background: var(--warn); color: #fff; }
+.cond-mini__btn[data-cond="maengel"].active { background: var(--bad); color: #fff; }
 
 /* ---------- Meter / Keys rows ---------- */
 .meter-row { display: grid; grid-template-columns: 1.4fr 1fr 1.4fr auto; gap: 10px; margin-bottom: 10px; align-items: center; }
@@ -304,9 +339,17 @@ textarea { resize: vertical; min-height: 80px; }
 .sum-sigs { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 10px; }
 .sum-sig img { max-width: 100%; height: 90px; object-fit: contain; border-bottom: 1.5px solid var(--ink); }
 
+.disclaimer {
+  margin-top: 24px; padding: 12px 14px;
+  border: 1px solid var(--line-strong); border-radius: var(--radius-sm);
+  background: var(--surface-2); color: var(--ink-soft);
+  font-size: .78rem; line-height: 1.5;
+}
+
 @media print {
   .topbar, .footer, .toasts, .editbar, .no-print { display: none !important; }
   body { background: #fff; background-image: none; }
   .app { max-width: none; padding: 0; }
-  .card, .sum-room { break-inside: avoid; }
+  .card, .sum-room, .disclaimer { break-inside: avoid; }
+  .disclaimer { background: #fff; }
 }

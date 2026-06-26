@@ -49,6 +49,41 @@
   const ROOM_PRESETS = ["Wohnzimmer", "Schlafzimmer", "Küche", "Bad", "Flur", "Kinderzimmer", "Arbeitszimmer", "Gäste-WC", "Balkon", "Keller", "Abstellraum"];
   const METER_PRESETS = ["Strom", "Gas", "Wasser (kalt)", "Wasser (warm)", "Heizung", "Fernwärme"];
   const COND_LABEL = { gut: "Gut", mittel: "Gebrauchsspuren", maengel: "Mängel" };
+  const COND_SHORT = { gut: "G", mittel: "S", maengel: "M" };
+  // Mangel-Einordnung – relevant für die Kostenfrage (Art. 267/267a OR)
+  const DEFECT_STATUS = { "": "Status …", bestehend: "Bestehend (bei Einzug)", neu: "Neu entstanden" };
+  const DEFECT_CAUSE = ["Normale Abnutzung", "Mieter:in", "Vermieter:in", "Vormieter:in", "Unklar"];
+  const DEFECT_STATUS_LABEL = { bestehend: "bestehend", neu: "neu" };
+
+  // Standard-Elemente einer Raum-Checkliste
+  const ITEMS_BASE = ["Wände", "Boden / Bodenbelag", "Decke", "Fenster", "Türen", "Steckdosen / Elektro", "Heizkörper", "Beleuchtung"];
+  // Zusätzliche Elemente je Raumtyp (per Stichwort im Namen erkannt)
+  const ITEMS_BY_TYPE = [
+    { match: /küche|kueche|kochnische/i, extra: ["Einbauküche", "Spüle / Armatur", "Herd / Backofen", "Dunstabzug", "Fliesen / Spritzschutz"] },
+    { match: /bad|wc|dusche|sanitär|sanitaer/i, extra: ["WC", "Waschbecken / Armatur", "Dusche / Badewanne", "Fliesen", "Silikonfugen", "Lüftung"] },
+    { match: /balkon|terrasse|loggia/i, extra: ["Geländer", "Entwässerung", "Außenboden"] },
+    { match: /keller|abstell|estrich|dachboden/i, extra: ["Feuchtigkeit", "Regale / Verschlag"] },
+  ];
+  // Vorschlagsliste fürs „Element +"-Feld
+  const ITEM_SUGGESTIONS = [...new Set([...ITEMS_BASE, ...ITEMS_BY_TYPE.flatMap((t) => t.extra)])];
+
+  function defaultItemsFor(name) {
+    const extra = ITEMS_BY_TYPE.filter((t) => t.match.test(name || "")).flatMap((t) => t.extra);
+    return [...ITEMS_BASE, ...extra].map((label) => ({ id: Store.uid(), label, cond: "", note: "" }));
+  }
+
+  // Gesamtstatus eines Raums aus den bewerteten Elementen ableiten (mit Fallback auf Alt-Feld)
+  function roomStatus(room) {
+    const rated = (room.items || []).filter((i) => i.cond);
+    if (rated.some((i) => i.cond === "maengel")) return "maengel";
+    if (rated.some((i) => i.cond === "mittel")) return "mittel";
+    if (rated.length && rated.every((i) => i.cond === "gut")) return "gut";
+    return room.condition || "";
+  }
+  function roomRatedCount(room) {
+    const items = room.items || [];
+    return { rated: items.filter((i) => i.cond).length, total: items.length };
+  }
 
   /* ----------------------------- Theme ----------------------------- */
   function applyTheme(t) {
@@ -67,7 +102,7 @@
     const checks = [
       !!(p.meta.street && p.meta.city),                 // Adresse
       p.rooms.length > 0,                               // mind. 1 Raum
-      p.rooms.every((r) => r.condition),                // Zustand gesetzt
+      p.rooms.every((r) => roomStatus(r)),              // jeder Raum bewertet
       p.meters.length > 0,                              // Zähler
       !!(p.meta.landlord && p.meta.tenant),             // Parteien
       !!(p.signatures.landlord && p.signatures.tenant), // Unterschriften
@@ -151,19 +186,62 @@
       ]),
     ]);
 
-    let body;
     if (!list.length) {
-      body = h("div", { class: "card empty" }, [
+      const body = h("div", { class: "card empty" }, [
         h("span", { class: "empty__emoji" }, "🗂"),
         h("h3", {}, "Noch kein Protokoll vorhanden"),
         h("p", { class: "muted" }, "Lege jetzt dein erstes Wohnungsübergabeprotokoll an."),
         h("a", { class: "btn btn--primary", href: "#/neu" }, ["Erstes Protokoll erstellen"]),
       ]);
-    } else {
-      body = h("div", { class: "grid grid--cards" }, list.map(protocolCard));
+      app.append(hero, stats, head, body);
+      return;
     }
 
-    app.append(hero, stats, head, body);
+    // Grid + Live-Suche (Adresse, Namen, Räume, Typ, Status). Ab 4 Protokollen eingeblendet.
+    const grid = h("div", { class: "grid grid--cards" });
+    const noMatch = h("div", { class: "card empty", style: "display:none" }, [
+      h("p", { class: "muted" }, "Kein Protokoll passt zur Suche."),
+    ]);
+
+    function renderCards(query) {
+      const needle = query.trim().toLowerCase();
+      const filtered = needle ? list.filter((p) => matchProtocol(p, needle)) : list;
+      grid.innerHTML = "";
+      filtered.forEach((p) => grid.appendChild(protocolCard(p)));
+      noMatch.style.display = filtered.length ? "none" : "";
+      const cnt = $("#searchCount");
+      if (cnt) cnt.textContent = needle ? `${filtered.length} von ${list.length}` : "";
+    }
+
+    if (list.length > 3) {
+      const searchInput = h("input", {
+        type: "search", class: "search__input", placeholder: "Suchen: Adresse, Name, Raum, Einzug/Auszug …",
+        "aria-label": "Protokolle durchsuchen",
+        oninput: (e) => renderCards(e.target.value),
+      });
+      const search = h("div", { class: "search no-print" }, [
+        h("span", { class: "search__icon", "aria-hidden": "true" }, "🔍"),
+        searchInput,
+        h("span", { id: "searchCount", class: "search__count" }, ""),
+      ]);
+      app.append(hero, stats, head, search, grid, noMatch);
+    } else {
+      app.append(hero, stats, head, grid, noMatch);
+    }
+
+    renderCards("");
+  }
+
+  // Treffer, wenn jedes Suchwort irgendwo im Protokoll vorkommt (UND-Verknüpfung).
+  function matchProtocol(p, needle) {
+    const hay = [
+      p.meta.street, p.meta.zip, p.meta.city, p.meta.floor,
+      p.meta.landlord, p.meta.tenant, p.meta.notes,
+      p.type === "einzug" ? "einzug" : "auszug",
+      p.status === "abgeschlossen" ? "abgeschlossen" : "entwurf",
+      ...p.rooms.map((r) => r.name),
+    ].filter(Boolean).join(" ").toLowerCase();
+    return needle.split(/\s+/).every((w) => hay.includes(w));
   }
 
   function stat(num, label) {
@@ -214,12 +292,21 @@
     { id: "zusammenfassung", label: "Zusammenfassung" },
   ];
 
+  let saveWarned = false; // Speicher-voll-Warnung nur einmal pro Editor-Sitzung zeigen
   function touch() {
     if (saveTimer) clearTimeout(saveTimer);
     setSaveState("Speichert …");
     saveTimer = setTimeout(() => {
-      Store.save(current);
-      setSaveState("Gespeichert ✓");
+      if (Store.save(current)) {
+        setSaveState("Gespeichert ✓");
+        saveWarned = false;
+      } else {
+        setSaveState("Nicht gespeichert ⚠");
+        if (!saveWarned) {
+          saveWarned = true;
+          toast("Speicher voll – Änderungen wurden NICHT gesichert. Bitte Fotos reduzieren und vorhandene Daten als Backup/PDF sichern.", "bad");
+        }
+      }
     }, 350);
   }
   function setSaveState(txt) {
@@ -230,7 +317,14 @@
   function viewEditor({ id }) {
     current = Store.get(id);
     if (!current) { toast("Protokoll nicht gefunden", "bad"); location.hash = "#/"; return; }
+    // Migration: ältere Räume ohne Element-Checkliste mit Standardelementen befüllen
+    let migrated = false;
+    current.rooms.forEach((r) => {
+      if (!Array.isArray(r.items)) { r.items = defaultItemsFor(r.name); migrated = true; }
+    });
+    if (migrated) Store.save(current);
     activeSection = "stammdaten";
+    saveWarned = false;
     renderEditor();
   }
 
@@ -239,7 +333,7 @@
 
     const back = h("a", { class: "btn btn--ghost btn--sm", href: "#/" }, ["← Übersicht"]);
     const titleAddr = current.meta.street || "Neues Protokoll";
-    const headRow = h("div", { class: "section-head" }, [
+    const headRow = h("div", { class: "section-head no-print" }, [
       h("div", {}, [
         back,
         h("h1", { style: "margin:10px 0 2px" }, titleAddr),
@@ -252,7 +346,7 @@
     ]);
 
     // Stepper
-    const stepper = h("div", { class: "stepper" }, SECTIONS.map((s, i) => {
+    const stepper = h("div", { class: "stepper no-print" }, SECTIONS.map((s, i) => {
       const done = sectionDone(s.id);
       return h("div", {
         class: `step ${activeSection === s.id ? "active" : ""} ${done ? "done" : ""}`,
@@ -264,16 +358,17 @@
     }));
 
     const panel = h("div", { id: "panel" });
-    renderSection(panel);
-
     app.append(headRow, stepper, panel, editbar());
+
+    // erst rendern, wenn panel im DOM hängt – sonst misst die Unterschrift-Canvas 0×0
+    renderSection(panel);
   }
 
   function sectionDone(id) {
     const p = current;
     switch (id) {
       case "stammdaten": return !!(p.meta.street && p.meta.city && p.meta.date);
-      case "raeume": return p.rooms.length > 0 && p.rooms.every((r) => r.condition);
+      case "raeume": return p.rooms.length > 0 && p.rooms.every((r) => roomStatus(r));
       case "zaehler": return p.meters.length > 0 && p.meters.every((m) => m.value !== "");
       case "schluessel": return p.keys.length > 0;
       case "unterschrift": return !!(p.signatures.landlord && p.signatures.tenant);
@@ -364,44 +459,78 @@
   }
 
   function addRoom(name) {
-    current.rooms.push({ id: Store.uid(), name, condition: "", note: "", defects: [] });
+    current.rooms.push({ id: Store.uid(), name, items: defaultItemsFor(name), condition: "", note: "", defects: [] });
     touch(); renderSection($("#panel"));
   }
 
   function roomCard(room) {
     const card = h("div", { class: "room" });
+    const status = roomStatus(room);
+    const { rated, total } = roomRatedCount(room);
 
     const head = h("div", { class: "room__head" }, [
       h("input", { class: "room__name", value: room.name, oninput: bindInput(room, "name") }),
       h("div", { class: "room__meta" }, [
+        status ? h("span", { class: `tag tag--${status === "maengel" ? "bad" : status === "gut" ? "ok" : ""}` }, COND_LABEL[status]) : h("span", { class: "tag muted" }, "unbewertet"),
         room.defects.length ? h("span", { class: "tag tag--bad" }, `${room.defects.length} ${room.defects.length > 1 ? "Mängel" : "Mangel"}`) : null,
-        h("button", { class: "icon-x", title: "Raum löschen", onclick: () => { current.rooms = current.rooms.filter((r) => r.id !== room.id); touch(); renderSection($("#panel")); } }, ["✕"]),
+        h("button", { class: "icon-x", title: "Raum löschen", onclick: () => { if (confirm(`Raum „${room.name}" löschen?`)) { current.rooms = current.rooms.filter((r) => r.id !== room.id); touch(); renderSection($("#panel")); } } }, ["✕"]),
       ]),
     ]);
 
-    const conds = h("div", { class: "cond-pills" }, ["gut", "mittel", "maengel"].map((c) =>
-      h("button", {
-        class: `cond-pill ${room.condition === c ? "active" : ""}`, "data-cond": c,
-        onclick: () => { room.condition = c; touch(); renderSection($("#panel")); },
-      }, COND_LABEL[c])
-    ));
+    // Element-Checkliste
+    const checklistHead = h("div", { class: "row row--between", style: "margin-bottom:10px" }, [
+      h("h3", { style: "font-size:.92rem;margin:0" }, `Checkliste · ${rated}/${total} bewertet`),
+      h("button", { class: "btn btn--ghost btn--sm", title: "Alle unbewerteten Elemente auf „Gut\" setzen", onclick: () => { room.items.forEach((it) => { if (!it.cond) it.cond = "gut"; }); touch(); renderSection($("#panel")); } }, ["Rest = Gut"]),
+    ]);
 
-    const note = field("Notiz zum Raum", input(room.note, bindInput(room, "note"), "z. B. Wände frisch gestrichen, Parkett ohne Kratzer"), true);
+    const itemsWrap = h("div", { class: "items" });
+    const colHead = h("div", { class: "item-row item-row--head" }, [
+      h("span", { class: "col-head" }, "Element"),
+      h("span", { class: "col-head", style: "text-align:center" }, "Zustand"),
+      h("span", { class: "col-head" }, "Notiz (optional)"),
+      h("span", {}, ""),
+    ]);
+    itemsWrap.appendChild(colHead);
+    room.items.forEach((it) => itemsWrap.appendChild(itemRow(room, it)));
+
+    const addItem = h("button", { class: "btn btn--ghost btn--sm", style: "margin-top:6px", onclick: () => { room.items.push({ id: Store.uid(), label: "", cond: "", note: "" }); touch(); renderSection($("#panel")); } }, ["Element +"]);
+
+    const note = field("Allgemeine Notiz zum Raum", input(room.note, bindInput(room, "note"), "z. B. frisch gestrichen, besenrein übergeben"), true);
 
     const defectsWrap = h("div", {});
     room.defects.forEach((d) => defectsWrap.appendChild(defectRow(room, d)));
-
-    const addDefect = h("button", { class: "btn btn--ghost btn--sm", onclick: () => { room.defects.push({ id: Store.uid(), text: "", photos: [] }); touch(); renderSection($("#panel")); } }, ["Mangel erfassen +"]);
+    const addDefect = h("button", { class: "btn btn--ghost btn--sm", onclick: () => { room.defects.push({ id: Store.uid(), text: "", status: "", cause: "", photos: [] }); touch(); renderSection($("#panel")); } }, ["Mangel mit Foto erfassen +"]);
 
     const body = h("div", { class: "room__body" }, [
-      conds, note,
+      checklistHead, itemsWrap, addItem,
+      h("hr", { class: "divider" }),
+      note,
       h("div", { class: "spacer", style: "height:6px" }),
-      h("h3", { style: "font-size:.92rem;margin-bottom:10px" }, "Mängel & Fotos"),
+      h("h3", { style: "font-size:.92rem;margin-bottom:10px" }, "Gesonderte Mängel & Fotos"),
       defectsWrap, addDefect,
     ]);
 
     card.append(head, body);
     return card;
+  }
+
+  function itemRow(room, it) {
+    const dlId = "items_" + it.id;
+    const labelIn = input(it.label, bindInput(it, "label"), "Element benennen");
+    labelIn.setAttribute("list", dlId);
+    const conds = h("div", { class: "cond-mini" }, ["gut", "mittel", "maengel"].map((c) =>
+      h("button", {
+        class: `cond-mini__btn ${it.cond === c ? "active" : ""}`, "data-cond": c,
+        title: COND_LABEL[c],
+        onclick: () => { it.cond = it.cond === c ? "" : c; touch(); renderSection($("#panel")); },
+      }, COND_SHORT[c])
+    ));
+    return h("div", { class: "item-row" }, [
+      h("div", {}, [labelIn, h("datalist", { id: dlId }, ITEM_SUGGESTIONS.map((s) => h("option", { value: s })))]),
+      conds,
+      input(it.note, bindInput(it, "note"), ""),
+      h("button", { class: "icon-x", title: "Element entfernen", onclick: () => { room.items = room.items.filter((x) => x.id !== it.id); touch(); renderSection($("#panel")); } }, ["✕"]),
+    ]);
   }
 
   function defectRow(room, d) {
@@ -416,10 +545,22 @@
     const fileInput = h("input", { type: "file", accept: "image/*", multiple: true, onchange: (e) => handlePhotos(e, d) });
     const photoLabel = h("label", { class: "photo-btn" }, ["Foto hinzufügen", fileInput]);
 
+    // Einordnung: bestehend/neu + Verursacher (für die Kostenfrage)
+    const statusSel = h("select", { class: "defect__select", onchange: bindInput(d, "status") },
+      Object.entries(DEFECT_STATUS).map(([v, label]) => h("option", { value: v }, label)));
+    statusSel.value = d.status || "";
+    const causeDl = "cause_" + d.id;
+    const causeIn = input(d.cause, bindInput(d, "cause"), "Verursacher (z. B. normale Abnutzung)");
+    causeIn.setAttribute("list", causeDl);
+
     return h("div", { class: "defect" }, [
       h("span", { class: "defect__marker" }, "!"),
       h("div", { style: "flex:1" }, [
         input(d.text, bindInput(d, "text"), "Mangel beschreiben, z. B. Kratzer im Parkett vor dem Fenster"),
+        h("div", { class: "defect__meta" }, [
+          statusSel,
+          h("div", {}, [causeIn, h("datalist", { id: causeDl }, DEFECT_CAUSE.map((c) => h("option", { value: c })))]),
+        ]),
         h("div", { class: "row", style: "margin-top:8px" }, [photoLabel]),
         thumbs,
       ]),
@@ -555,15 +696,45 @@
       h("canvas", { class: "sig-pad", id: "pad_" + key }),
       h("div", { class: "sig-actions" }, [
         h("button", { class: "btn btn--ghost btn--sm", onclick: () => clearPad(key) }, ["Löschen"]),
-        current.signatures[key] ? h("span", { class: "tag tag--ok" }, "Unterschrieben") : h("span", { class: "muted", style: "font-size:.82rem;align-self:center" }, "Noch nicht unterschrieben"),
+        sigStateEl(key),
       ]),
     ]);
     return wrap;
   }
 
+  // Status-Anzeige „Unterschrieben / Noch nicht unterschrieben" – lässt sich live aktualisieren
+  function sigStateEl(key) {
+    const signed = !!current.signatures[key];
+    return h("span", {
+      id: "sigstate_" + key,
+      class: signed ? "tag tag--ok" : "muted",
+      style: signed ? "" : "font-size:.82rem;align-self:center",
+    }, signed ? "Unterschrieben" : "Noch nicht unterschrieben");
+  }
+  function updateSigState(key) {
+    const el = $("#sigstate_" + key);
+    if (el) el.replaceWith(sigStateEl(key));
+  }
+
+  // Unterschrift immer dunkel speichern (bleibt im PDF/hellen Modus sichtbar),
+  // Anzeige je nach Theme einfärben – im Dunkelmodus weiß.
+  const SIG_INK = "#1a1a1a";
+  function recolorSig(src, w, h, color) {
+    const off = document.createElement("canvas");
+    off.width = w; off.height = h;
+    const o = off.getContext("2d");
+    o.drawImage(src, 0, 0, w, h);
+    o.globalCompositeOperation = "source-in"; // nur die Striche umfärben, Transparenz erhalten
+    o.fillStyle = color;
+    o.fillRect(0, 0, w, h);
+    return off;
+  }
+
   function setupSignaturePad(key) {
     const canvas = $("#pad_" + key);
     if (!canvas) return;
+    const dark = document.documentElement.getAttribute("data-theme") === "dark";
+    const inkLive = dark ? "#ffffff" : SIG_INK;
     const ratio = window.devicePixelRatio || 1;
     const rect = canvas.getBoundingClientRect();
     canvas.width = rect.width * ratio;
@@ -571,12 +742,12 @@
     const ctx = canvas.getContext("2d");
     ctx.scale(ratio, ratio);
     ctx.lineWidth = 2.2; ctx.lineCap = "round"; ctx.lineJoin = "round";
-    ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue("--text").trim() || "#000";
+    ctx.strokeStyle = inkLive;
 
-    // vorhandene Unterschrift anzeigen
+    // vorhandene (dunkel gespeicherte) Unterschrift in Theme-Farbe anzeigen
     if (current.signatures[key]) {
       const img = new Image();
-      img.onload = () => ctx.drawImage(img, 0, 0, rect.width, rect.height);
+      img.onload = () => ctx.drawImage(recolorSig(img, canvas.width, canvas.height, inkLive), 0, 0, rect.width, rect.height);
       img.src = current.signatures[key];
     }
 
@@ -595,7 +766,9 @@
     };
     const end = () => {
       if (drawing && dirty) {
-        current.signatures[key] = canvas.toDataURL("image/png");
+        // immer dunkel speichern, damit die Unterschrift im PDF/hellen Modus sichtbar bleibt
+        current.signatures[key] = recolorSig(canvas, canvas.width, canvas.height, SIG_INK).toDataURL("image/png");
+        updateSigState(key);
         touch();
       }
       drawing = false;
@@ -623,7 +796,13 @@
     const actions = h("div", { class: "section-head no-print" }, [
       h("div", {}, [h("span", { class: "kicker" }, "Schritt 06"), h("h2", { style: "margin-top:4px" }, "Zusammenfassung & Export")]),
       h("div", { class: "row" }, [
-        h("button", { class: "btn btn--ghost btn--sm", onclick: () => { p.status = p.status === "abgeschlossen" ? "entwurf" : "abgeschlossen"; Store.save(p); toast(p.status === "abgeschlossen" ? "Als abgeschlossen markiert" : "Wieder als Entwurf"); renderSection($("#panel")); } }, [p.status === "abgeschlossen" ? "Als Entwurf markieren" : "Protokoll abschließen"]),
+        h("button", { class: "btn btn--ghost btn--sm", onclick: () => {
+          p.status = p.status === "abgeschlossen" ? "entwurf" : "abgeschlossen";
+          if (!Store.save(p)) { toast("Speicher voll – Status konnte nicht gesichert werden. Bitte ein Backup/PDF erstellen.", "bad"); }
+          else if (p.status === "abgeschlossen") { toast("Als abgeschlossen markiert · Tipp: jetzt als PDF speichern oder Backup erstellen."); }
+          else { toast("Wieder als Entwurf"); }
+          renderSection($("#panel"));
+        } }, [p.status === "abgeschlossen" ? "Als Entwurf markieren" : "Protokoll abschließen"]),
         h("button", { class: "btn btn--primary btn--sm", onclick: () => window.print() }, ["Als PDF / Drucken"]),
       ]),
     ]);
@@ -680,21 +859,42 @@
         sumSig("Mieter:in", p.meta.tenant, p.signatures.tenant),
       ]),
 
-      h("p", { class: "muted", style: "margin-top:24px;font-size:.78rem" }, `Erstellt mit Wohnprotokoll · ${fmtDate(p.createdAt)} · Dieses Protokoll dokumentiert den Zustand der Wohnung zum Übergabezeitpunkt.`),
+      h("div", { class: "disclaimer" }, [
+        h("strong", {}, "Hinweis: "),
+        "Wohnprotokoll ist ein Hilfsmittel zur Dokumentation des Wohnungszustands und stellt keine Rechtsberatung dar. Für Vollständigkeit, Richtigkeit und Rechtsgültigkeit dieses Protokolls wird keine Gewähr übernommen. Maßgeblich sind die getroffenen Vereinbarungen der Parteien sowie die geltenden gesetzlichen Bestimmungen. Im Zweifel ziehe rechtlichen Rat hinzu.",
+      ]),
+
+      h("p", { class: "muted", style: "margin-top:16px;font-size:.78rem" }, `Erstellt mit Wohnprotokoll · ${fmtDate(p.createdAt)} · Dieses Protokoll dokumentiert den Zustand der Wohnung zum Übergabezeitpunkt.`),
     ]);
     return doc;
   }
 
   function sumRoom(r) {
-    const condClass = r.condition === "maengel" ? "bad" : r.condition === "mittel" ? "warn" : "ok";
+    const status = roomStatus(r);
+    const condClass = status === "maengel" ? "bad" : status === "mittel" ? "warn" : "ok";
     const photos = r.defects.flatMap((d) => d.photos || []);
+    const rated = (r.items || []).filter((i) => i.label || i.cond);
     return h("div", { class: "sum-room" }, [
       h("div", { class: "row row--between" }, [
         h("strong", {}, r.name || "Raum"),
-        h("span", { class: "tag", style: `color:var(--${condClass});border-color:var(--${condClass})` }, r.condition ? COND_LABEL[r.condition] : "ohne Bewertung"),
+        h("span", { class: "tag", style: `color:var(--${condClass});border-color:var(--${condClass})` }, status ? COND_LABEL[status] : "ohne Bewertung"),
       ]),
-      r.note ? h("div", { class: "muted", style: "margin-top:4px" }, r.note) : null,
-      r.defects.length ? h("ul", { style: "margin:8px 0 0;padding-left:18px" }, r.defects.map((d) => h("li", {}, d.text || "Mangel ohne Beschreibung"))) : null,
+      rated.length ? h("table", { class: "sum-table", style: "margin:10px 0 0" }, [
+        h("tr", {}, [h("th", { style: "width:45%" }, "Element"), h("th", { style: "width:20%" }, "Zustand"), h("th", {}, "Notiz")]),
+        ...rated.map((i) => h("tr", {}, [
+          h("td", {}, i.label || "—"),
+          h("td", { style: i.cond ? `color:var(--${i.cond === "maengel" ? "bad" : i.cond === "mittel" ? "warn" : "ok"});font-weight:700` : "" }, i.cond ? COND_LABEL[i.cond] : "—"),
+          h("td", {}, i.note || ""),
+        ])),
+      ]) : null,
+      r.note ? h("div", { class: "muted", style: "margin-top:6px" }, "Notiz: " + r.note) : null,
+      r.defects.length ? h("ul", { style: "margin:8px 0 0;padding-left:18px" }, r.defects.map((d) => {
+        const tags = [DEFECT_STATUS_LABEL[d.status], d.cause].filter(Boolean).join(" · ");
+        return h("li", {}, [
+          d.text || "Mangel ohne Beschreibung",
+          tags ? h("span", { class: "muted", style: "font-size:.85rem" }, ` (${tags})`) : null,
+        ]);
+      })) : null,
       photos.length ? h("div", { class: "sum-photos" }, photos.map((src) => h("img", { src }))) : null,
     ]);
   }
@@ -799,6 +999,10 @@
             h("p", { class: "muted", style: "margin:0;font-size:.88rem" }, d),
           ])
         )),
+      ]),
+      h("div", { class: "card", style: "margin-top:24px" }, [
+        h("h2", {}, "Rechtlicher Hinweis"),
+        h("p", { class: "muted", style: "margin:0;font-size:.9rem" }, "Wohnprotokoll ist ein Werkzeug zur Dokumentation des Wohnungszustands und ersetzt keine Rechtsberatung. Für die Vollständigkeit, Richtigkeit und Rechtsgültigkeit der erstellten Protokolle wird keine Gewähr übernommen. Maßgeblich bleiben die Vereinbarungen zwischen Mieter:in und Vermieter:in sowie die geltenden gesetzlichen Bestimmungen. Bei rechtlichen Fragen wende dich an eine fachkundige Stelle (z. B. Mieter- oder Vermieterverband)."),
       ])
     );
   }

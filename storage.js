@@ -69,8 +69,9 @@
       const idx = list.findIndex((p) => p.id === protocol.id);
       if (idx >= 0) list[idx] = protocol;
       else list.push(protocol);
-      write(list);
-      return protocol;
+      // write() liefert bei vollem/blockiertem localStorage false – nach außen geben,
+      // damit das UI keinen „Gespeichert"-Status vortäuscht, obwohl nichts gesichert wurde.
+      return write(list) ? protocol : false;
     },
 
     remove(id) {
@@ -99,7 +100,7 @@
       const list = read();
       const byId = new Map(list.map((p) => [p.id, p]));
       incoming.forEach((p) => byId.set(p.id, p));
-      write([...byId.values()]);
+      if (!write([...byId.values()])) throw new Error("Speicher voll – Import nicht gesichert");
       return incoming.length;
     },
 
