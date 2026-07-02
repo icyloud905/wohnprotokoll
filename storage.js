@@ -180,7 +180,11 @@
     },
 
     // ---- Theme ----
-    getTheme() { return localStorage.getItem(THEME_KEY) || "light"; },
+    // "auto" folgt der Systemeinstellung (hell/dunkel); Nutzer können fix hell/dunkel wählen.
+    getTheme() {
+      const t = localStorage.getItem(THEME_KEY);
+      return t === "light" || t === "dark" || t === "auto" ? t : "auto";
+    },
     setTheme(t) { localStorage.setItem(THEME_KEY, t); },
 
     uid,

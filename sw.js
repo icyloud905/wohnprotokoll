@@ -3,7 +3,7 @@
    Offline-Fähigkeit via Cache (stale-while-revalidate).
    Nur eigene Assets werden gecacht; Daten liegen ohnehin im localStorage.
    ========================================================= */
-const CACHE = "wohnprotokoll-v1";
+const CACHE = "wohnprotokoll-v2";
 const ASSETS = [
   "/",
   "/index.html",

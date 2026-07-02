@@ -159,13 +159,23 @@
   }
 
   /* ----------------------------- Theme ----------------------------- */
+  // Drei Modi: hell → dunkel → auto (folgt dem System). Auto reagiert live auf Systemwechsel.
+  const THEME_ORDER = ["light", "dark", "auto"];
+  const THEME_ICON = { light: "☾", dark: "☀", auto: "◐" };
+  const THEME_TITLE = { light: "Hell (klicken für Dunkel)", dark: "Dunkel (klicken für Automatisch)", auto: "Automatisch – folgt dem System (klicken für Hell)" };
+  const darkMedia = window.matchMedia("(prefers-color-scheme: dark)");
+  function resolveTheme(t) { return t === "auto" ? (darkMedia.matches ? "dark" : "light") : t; }
   function applyTheme(t) {
-    document.documentElement.setAttribute("data-theme", t);
-    $("#themeToggle").textContent = t === "dark" ? "☀" : "☾";
+    document.documentElement.setAttribute("data-theme", resolveTheme(t));
+    const btn = $("#themeToggle");
+    btn.textContent = THEME_ICON[t] || "☾";
+    btn.title = THEME_TITLE[t] || "";
+    btn.setAttribute("aria-label", THEME_TITLE[t] || "Theme umschalten");
   }
   applyTheme(Store.getTheme());
+  darkMedia.addEventListener("change", () => { if (Store.getTheme() === "auto") applyTheme("auto"); });
   $("#themeToggle").addEventListener("click", () => {
-    const next = Store.getTheme() === "dark" ? "light" : "dark";
+    const next = THEME_ORDER[(THEME_ORDER.indexOf(Store.getTheme()) + 1) % THEME_ORDER.length];
     Store.setTheme(next); applyTheme(next);
   });
 
@@ -189,7 +199,7 @@
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") setMenu(false); });
 
   /* ----------------------------- Tastatur-Shortcuts ----------------------------- */
-  // „n" = neues Protokoll · „/" = Suche fokussieren (nur wenn man nicht gerade tippt)
+  // „n" = neues Protokoll · „/" = Suche · „?" = Hilfe (nur wenn man nicht gerade tippt)
   document.addEventListener("keydown", (e) => {
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     const t = e.target;
@@ -197,7 +207,36 @@
     if (typing) return;
     if (e.key === "/") { const s = $(".search__input"); if (s) { e.preventDefault(); s.focus(); } }
     else if (e.key === "n" || e.key === "N") { location.hash = "#/neu"; }
+    else if (e.key === "?") { e.preventDefault(); showShortcuts(); }
   });
+
+  // Übersicht der Tastenkürzel als Dialog (Taste „?")
+  function showShortcuts() {
+    if ($(".modal-backdrop")) return; // nicht doppelt öffnen
+    const backdrop = h("div", { class: "modal-backdrop" });
+    const close = () => { backdrop.remove(); document.removeEventListener("keydown", onKey); };
+    function onKey(e) { if (e.key === "Escape") { e.stopPropagation(); close(); } }
+    const rows = [
+      ["N", "Neues Protokoll anlegen"],
+      ["/", "Suche fokussieren (Übersicht)"],
+      ["?", "Diese Hilfe anzeigen"],
+      ["Esc", "Menü / Dialog schließen"],
+    ];
+    const dialog = h("div", { class: "modal", role: "dialog", "aria-modal": "true" }, [
+      h("h3", { class: "modal__title" }, "Tastenkürzel"),
+      h("table", { class: "kbd-table" }, rows.map(([k, d]) => h("tr", {}, [
+        h("td", {}, [h("kbd", {}, k)]),
+        h("td", {}, d),
+      ]))),
+      h("div", { class: "modal__actions" }, [
+        h("button", { class: "btn btn--primary btn--sm", onclick: close }, ["Schließen"]),
+      ]),
+    ]);
+    backdrop.appendChild(dialog);
+    backdrop.addEventListener("click", (e) => { if (e.target === backdrop) close(); });
+    document.addEventListener("keydown", onKey);
+    document.body.appendChild(backdrop);
+  }
 
   $("#year").textContent = new Date().getFullYear();
 
@@ -234,11 +273,13 @@
         app.innerHTML = "";
         r.handler(params);
         markNav(hash);
+        animateView();
         return;
       }
     }
     app.innerHTML = "";
     viewDashboard();
+    animateView();
   }
 
   function markNav(hash) {
@@ -248,11 +289,36 @@
     });
   }
 
+  // Sanfter Einblend-Übergang bei jedem Seitenwechsel (respektiert reduzierte Bewegung via CSS)
+  function animateView() {
+    app.classList.remove("view-anim");
+    void app.offsetWidth; // Reflow erzwingen, damit die Animation neu startet
+    app.classList.add("view-anim");
+  }
+
   window.addEventListener("hashchange", navigate);
   document.addEventListener("click", (e) => {
     const link = e.target.closest("a[data-link]");
     if (link) { /* default hash nav is fine */ }
   });
+
+  /* ----------------------------- Konfetti ----------------------------- */
+  // Kleiner Festmoment, wenn ein Protokoll 100 % erreicht oder abgeschlossen wird.
+  function celebrate() {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const colors = ["#b3502d", "#4d7240", "#a9791f", "#23211c", "#cf7048"];
+    for (let i = 0; i < 40; i++) {
+      const piece = h("span", {
+        class: "confetti",
+        style: `left:${Math.random() * 100}vw;background:${colors[i % colors.length]};` +
+          `animation-duration:${1.6 + Math.random() * 1.4}s;animation-delay:${Math.random() * 0.4}s;` +
+          `transform:rotate(${Math.random() * 360}deg)`,
+        "aria-hidden": "true",
+      });
+      document.body.appendChild(piece);
+      setTimeout(() => piece.remove(), 3600);
+    }
+  }
 
   /* ============================ DASHBOARD ============================ */
   function viewDashboard() {
@@ -264,6 +330,11 @@
         h("span", { class: "kicker" }, "Wohnungsübergabe · Einzug & Auszug"),
         h("h1", {}, "Den Zustand der Wohnung sauber festhalten – in Minuten."),
         h("p", {}, "Räume, Mängel mit Fotos, Zählerstände und Schlüssel erfassen, direkt im Browser unterschreiben und als PDF sichern. Alles bleibt lokal auf deinem Gerät."),
+        h("ul", { class: "ticks" }, [
+          h("li", {}, "Kostenlos, ohne Anmeldung, ohne Cookies"),
+          h("li", {}, "Funktioniert offline – Daten bleiben auf deinem Gerät"),
+          h("li", {}, "Einzug ↔ Auszug vergleichen: neue Mängel & Verbrauch auf einen Blick"),
+        ]),
         h("div", { class: "btn-row row" }, [
           h("a", { class: "btn btn--primary", href: "#/neu" }, ["Neues Protokoll anlegen"]),
           h("a", { class: "btn btn--ghost", href: "#/info" }, ["Anleitung ansehen"]),
@@ -549,9 +620,10 @@
       ["Öffnen", () => (location.hash = `#/p/${p.id}`)],
       ["Duplizieren", () => onDuplicate && onDuplicate()],
       ["Teilen / Export", () => onExport && onExport()],
+      Store.all().length > 1 ? ["Vergleichen …", () => openComparePicker(p)] : null,
       [p.favorite ? "Favorit entfernen" : "Als Favorit", () => onFav && onFav()],
       ["Löschen", () => onDelete && onDelete(), true],
-    ];
+    ].filter(Boolean);
     const listEl = h("div", { class: "cardmenu__list" }, items.map(([label, fn, danger]) =>
       h("button", { class: "cardmenu__item" + (danger ? " is-danger" : ""), onclick: (e) => { e.stopPropagation(); setOpen(false); fn(); } }, label)
     ));
@@ -567,11 +639,127 @@
     return wrap;
   }
 
-  /* ============================ NEU ============================ */
+  /* ============================ NEU (Start-Assistent) ============================ */
+  const APT_TEMPLATES = [
+    { id: "blank", label: "Leer starten", desc: "Ohne Räume – alles selbst hinzufügen", rooms: [] },
+    { id: "1.5", label: "1,5 Zimmer", desc: "Zimmer · Küche · Bad · Flur", rooms: ["Zimmer", "Küche", "Bad", "Flur"] },
+    { id: "2.5", label: "2,5 Zimmer", desc: "Wohnen · Schlafen · Küche · Bad · Flur", rooms: ["Wohnzimmer", "Schlafzimmer", "Küche", "Bad", "Flur"] },
+    { id: "3.5", label: "3,5 Zimmer", desc: "2,5 Zimmer + Kinderzimmer", rooms: ["Wohnzimmer", "Schlafzimmer", "Kinderzimmer", "Küche", "Bad", "Flur"] },
+    { id: "4.5", label: "4,5 Zimmer", desc: "3,5 Zimmer + Arbeitszimmer", rooms: ["Wohnzimmer", "Schlafzimmer", "Kinderzimmer", "Arbeitszimmer", "Küche", "Bad", "Flur"] },
+    { id: "haus", label: "Haus", desc: "Alle Räume inkl. Gäste-WC & Keller", rooms: ["Wohnzimmer", "Esszimmer", "Küche", "Schlafzimmer", "Kinderzimmer", "Arbeitszimmer", "Bad", "Gäste-WC", "Flur", "Keller"] },
+  ];
+  const STANDARD_METERS = ["Strom", "Wasser (kalt)", "Wasser (warm)", "Heizung"];
+  const STANDARD_KEYS = [["Wohnungstür", 2], ["Haustür", 1], ["Briefkasten", 1]];
+
   function viewNew() {
+    let type = "einzug";
+    let tplId = "2.5";
+    let balkon = false, keller = false, withMeters = true, withKeys = true;
+
+    const head = h("section", { class: "masthead" }, [
+      h("div", { class: "masthead__in" }, [
+        h("span", { class: "kicker" }, "Start-Assistent"),
+        h("h1", {}, "Neues Protokoll anlegen"),
+        h("p", {}, "Wähle eine Wohnungsvorlage – Räume samt Checklisten, Zähler und Schlüssel werden direkt vorbereitet. Alles lässt sich später jederzeit anpassen."),
+      ]),
+    ]);
+
+    const segIn = h("button", { class: "active", onclick: () => setType("einzug") }, "Einzug");
+    const segOut = h("button", { onclick: () => setType("auszug") }, "Auszug");
+    function setType(t) {
+      type = t;
+      segIn.classList.toggle("active", t === "einzug");
+      segOut.classList.toggle("active", t === "auszug");
+    }
+
+    const tiles = h("div", { class: "tpl-grid" });
+    function renderTiles() {
+      tiles.innerHTML = "";
+      APT_TEMPLATES.forEach((t) => {
+        tiles.appendChild(h("button", {
+          class: "tpl" + (tplId === t.id ? " active" : ""),
+          "aria-pressed": tplId === t.id ? "true" : "false",
+          onclick: () => { tplId = t.id; renderTiles(); },
+        }, [
+          h("strong", {}, t.label),
+          h("span", { class: "tpl__desc" }, t.desc),
+        ]));
+      });
+    }
+    renderTiles();
+
+    const check = (label, initial, onchange) => h("label", { class: "check" }, [
+      h("input", { type: "checkbox", checked: initial ? "checked" : null, onchange: (e) => onchange(e.target.checked) }),
+      h("span", {}, label),
+    ]);
+
+    function createFromTemplate() {
+      const tpl = APT_TEMPLATES.find((t) => t.id === tplId);
+      const p = Store.blank();
+      p.type = type;
+      const rooms = [...tpl.rooms];
+      if (balkon) rooms.push("Balkon");
+      if (keller && !rooms.includes("Keller")) rooms.push("Keller");
+      p.rooms = rooms.map((name) => ({ id: Store.uid(), name, items: defaultItemsFor(name), condition: "", note: "", defects: [] }));
+      if (withMeters) p.meters = STANDARD_METERS.map((name) => ({ id: Store.uid(), name, value: "", number: "", photos: [] }));
+      if (withKeys) p.keys = STANDARD_KEYS.map(([name, count]) => ({ id: Store.uid(), name, count }));
+      if (!Store.save(p)) { toast("Speicher voll – Protokoll konnte nicht angelegt werden", "bad"); return; }
+      toast(p.rooms.length ? `Protokoll mit ${p.rooms.length} Räumen vorbereitet` : "Leeres Protokoll angelegt");
+      location.hash = `#/p/${p.id}`;
+    }
+
+    const tplCard = h("div", { class: "card" }, [
+      h("div", { class: "field", style: "margin-bottom:18px" }, [
+        h("label", {}, "Art der Übergabe"),
+        h("div", { class: "segmented" }, [segIn, segOut]),
+      ]),
+      h("div", { class: "field", style: "margin-bottom:6px" }, [h("label", {}, "Wohnungsvorlage")]),
+      tiles,
+      h("div", { class: "row", style: "margin:16px 0 20px;gap:16px" }, [
+        check("Balkon / Terrasse", false, (v) => (balkon = v)),
+        check("Keller / Abstellraum", false, (v) => (keller = v)),
+        check("Standard-Zähler (Strom, Wasser, Heizung)", true, (v) => (withMeters = v)),
+        check("Standard-Schlüssel (Wohnung, Haus, Briefkasten)", true, (v) => (withKeys = v)),
+      ]),
+      h("button", { class: "btn btn--primary", onclick: createFromTemplate }, ["Protokoll erstellen →"]),
+    ]);
+
+    const list = Store.all();
+    let followCard = null;
+    if (list.length) {
+      followCard = h("div", { class: "card", style: "margin-top:18px" }, [
+        h("h2", {}, "Oder auf bestehendem Protokoll aufbauen"),
+        h("p", { class: "muted", style: "font-size:.9rem" }, `Übernimmt Adresse, Parteien, Räume, Zähler und Schlüssel. Erfasste Mängel werden als „bestehend" übernommen – ideal, um aus dem Einzugs- das Auszugsprotokoll zu machen. Zustände, Zählerstände und Unterschriften bleiben bewusst leer.`),
+        h("div", { class: "follow-list" }, list.slice(0, 8).map((p) => h("button", { class: "follow", onclick: () => createFollowUp(p) }, [
+          h("span", { class: `pcard__type type--${p.type}` }, p.type === "einzug" ? "Einzug" : "Auszug"),
+          h("strong", { class: "follow__addr" }, addrLabel(p)),
+          h("span", { class: "muted follow__sub" }, `${p.rooms.length} Räume · Übergabe ${fmtDateISO(p.meta.date)}`),
+          h("span", { class: "follow__cta" }, p.type === "einzug" ? "Auszugsprotokoll erstellen →" : "Einzugsprotokoll erstellen →"),
+        ]))),
+      ]);
+    }
+
+    app.append(...[head, tplCard, followCard].filter(Boolean));
+  }
+
+  // Folgeprotokoll: Wohnung, Räume, Zähler & Schlüssel eines bestehenden Protokolls übernehmen.
+  // Mängel wandern mit Status „bestehend" mit (Fotos nicht – schont den lokalen Speicher).
+  function createFollowUp(src) {
     const p = Store.blank();
-    Store.save(p);
-    location.replace(`#/p/${p.id}`);
+    p.type = src.type === "einzug" ? "auszug" : "einzug";
+    p.meta.street = src.meta.street; p.meta.zip = src.meta.zip; p.meta.city = src.meta.city;
+    p.meta.floor = src.meta.floor; p.meta.landlord = src.meta.landlord; p.meta.tenant = src.meta.tenant;
+    p.rooms = (src.rooms || []).map((r) => ({
+      id: Store.uid(), name: r.name, condition: "", note: "",
+      items: (r.items || []).map((i) => ({ id: Store.uid(), label: i.label, cond: "", note: "" })),
+      defects: (r.defects || []).filter((d) => d.text).map((d) => ({ id: Store.uid(), text: d.text, status: "bestehend", cause: d.cause || "", photos: [] })),
+    }));
+    p.meters = (src.meters || []).map((m) => ({ id: Store.uid(), name: m.name, value: "", number: m.number, photos: [] }));
+    p.keys = (src.keys || []).map((k) => ({ id: Store.uid(), name: k.name, count: k.count }));
+    p.deposit = { ...p.deposit, ...(src.deposit || {}) };
+    if (!Store.save(p)) { toast("Speicher voll – Protokoll konnte nicht angelegt werden", "bad"); return; }
+    toast(`${p.type === "auszug" ? "Auszugs" : "Einzugs"}protokoll aus „${addrLabel(src)}" erstellt`);
+    location.hash = `#/p/${p.id}`;
   }
 
   /* ============================ EDITOR ============================ */
@@ -597,6 +785,7 @@
   }
 
   let saveWarned = false; // Speicher-voll-Warnung nur einmal pro Editor-Sitzung zeigen
+  let lastPct = 0;        // um den Moment zu erkennen, in dem 100 % erreicht werden
   function touch() {
     if (saveTimer) clearTimeout(saveTimer);
     setSaveState("Speichert …");
@@ -604,6 +793,9 @@
       if (Store.save(current)) {
         setSaveState("Gespeichert ✓");
         saveWarned = false;
+        const pct = completion(current);
+        if (pct === 100 && lastPct < 100) { celebrate(); toast("Protokoll 100 % vollständig 🎉"); }
+        lastPct = pct;
       } else {
         setSaveState("Nicht gespeichert ⚠");
         if (!saveWarned) {
@@ -629,6 +821,7 @@
     if (migrated) Store.save(current);
     activeSection = "stammdaten";
     saveWarned = false;
+    lastPct = completion(current);
     renderEditor();
   }
 
@@ -784,11 +977,23 @@
     const status = roomStatus(room);
     const { rated, total } = roomRatedCount(room);
 
+    // Reihenfolge der Räume anpassen (spiegelt sich auch in PDF & Zusammenfassung)
+    const idx = current.rooms.indexOf(room);
+    const move = (dir) => {
+      const j = idx + dir;
+      if (j < 0 || j >= current.rooms.length) return;
+      current.rooms.splice(idx, 1);
+      current.rooms.splice(j, 0, room);
+      touch(); renderSection($("#panel"));
+    };
+
     const head = h("div", { class: "room__head" }, [
       h("input", { class: "room__name", value: room.name, oninput: bindInput(room, "name") }),
       h("div", { class: "room__meta" }, [
         status ? h("span", { class: `tag tag--${status === "maengel" ? "bad" : status === "gut" ? "ok" : ""}` }, COND_LABEL[status]) : h("span", { class: "tag muted" }, "unbewertet"),
         room.defects.length ? h("span", { class: "tag tag--bad" }, `${room.defects.length} ${room.defects.length > 1 ? "Mängel" : "Mangel"}`) : null,
+        h("button", { class: "icon-x icon-move", title: "Raum nach oben", "aria-label": "Raum nach oben verschieben", disabled: idx === 0 ? "" : null, onclick: () => move(-1) }, ["↑"]),
+        h("button", { class: "icon-x icon-move", title: "Raum nach unten", "aria-label": "Raum nach unten verschieben", disabled: idx === current.rooms.length - 1 ? "" : null, onclick: () => move(1) }, ["↓"]),
         h("button", { class: "icon-x", title: "Raum löschen", onclick: () => confirmDialog({ title: "Raum löschen?", message: `„${room.name || "Raum"}" samt erfasster Mängel wird entfernt.`, confirmLabel: "Löschen", danger: true, onConfirm: () => { current.rooms = current.rooms.filter((r) => r.id !== room.id); touch(); renderSection($("#panel")); } }) }, ["✕"]),
       ]),
     ]);
@@ -1153,10 +1358,11 @@
     const actions = h("div", { class: "section-head no-print" }, [
       h("div", {}, [h("span", { class: "kicker" }, stepKicker("zusammenfassung")), h("h2", { style: "margin-top:4px" }, "Zusammenfassung & Export")]),
       h("div", { class: "row" }, [
+        Store.all().length > 1 ? h("button", { class: "btn btn--ghost btn--sm", onclick: () => openComparePicker(p), title: "Mit einem zweiten Protokoll vergleichen (z. B. Einzug ↔ Auszug)" }, ["Vergleichen …"]) : null,
         h("button", { class: "btn btn--ghost btn--sm", onclick: () => {
           p.status = p.status === "abgeschlossen" ? "entwurf" : "abgeschlossen";
           if (!Store.save(p)) { toast("Speicher voll – Status konnte nicht gesichert werden. Bitte ein Backup/PDF erstellen.", "bad"); }
-          else if (p.status === "abgeschlossen") { toast("Als abgeschlossen markiert · Tipp: jetzt als PDF speichern oder Backup erstellen."); }
+          else if (p.status === "abgeschlossen") { toast("Als abgeschlossen markiert · Tipp: jetzt als PDF speichern oder Backup erstellen."); celebrate(); }
           else { toast("Wieder als Entwurf"); }
           renderSection($("#panel"));
         } }, [p.status === "abgeschlossen" ? "Als Entwurf markieren" : "Protokoll abschließen"]),
@@ -1411,9 +1617,179 @@
     });
   }
 
+  /* ============================ VERGLEICH ============================ */
+  // Normalisierte Adresse für die Kandidatensuche (gleiche Wohnung erkennen)
+  function normAddr(p) {
+    return [p.meta.street, p.meta.zip, p.meta.city].map((s) => String(s || "").trim().toLowerCase()).join("|");
+  }
+
+  // Zählerstand als Zahl interpretieren (Schweizer/deutsche Schreibweisen: 24'561,3 / 24 561.3)
+  function meterNum(v) {
+    if (v == null || v === "") return null;
+    const n = parseFloat(String(v).trim().replace(/['\s]/g, "").replace(",", "."));
+    return isNaN(n) ? null : n;
+  }
+  const fmtNum = (n) => n.toLocaleString("de-CH", { maximumFractionDigits: 2 });
+
+  // Auswahl-Dialog: mit welchem zweiten Protokoll vergleichen?
+  function openComparePicker(p) {
+    const others = Store.all().filter((x) => x.id !== p.id);
+    if (!others.length) { toast("Kein zweites Protokoll zum Vergleichen vorhanden", "bad"); return; }
+    const hasAddr = normAddr(p) !== "||";
+    const sameAddr = new Set(others.filter((x) => hasAddr && normAddr(x) === normAddr(p)).map((x) => x.id));
+    others.sort((x, y) => (sameAddr.has(y.id) ? 1 : 0) - (sameAddr.has(x.id) ? 1 : 0));
+
+    const backdrop = h("div", { class: "modal-backdrop" });
+    const close = () => { backdrop.remove(); document.removeEventListener("keydown", onKey); };
+    function onKey(e) { if (e.key === "Escape") { e.stopPropagation(); close(); } }
+    const dialog = h("div", { class: "modal modal--wide", role: "dialog", "aria-modal": "true" }, [
+      h("h3", { class: "modal__title" }, "Vergleichen mit …"),
+      h("p", { class: "modal__msg" }, `„${addrLabel(p)}" einem zweiten Protokoll gegenüberstellen – typisch: Einzug und Auszug derselben Wohnung.`),
+      h("div", { class: "follow-list" }, others.slice(0, 12).map((o) => h("button", { class: "follow", onclick: () => { close(); location.hash = `#/vergleich/${p.id}/${o.id}`; } }, [
+        h("span", { class: `pcard__type type--${o.type}` }, o.type === "einzug" ? "Einzug" : "Auszug"),
+        h("strong", { class: "follow__addr" }, addrLabel(o)),
+        h("span", { class: "muted follow__sub" }, `${fmtDateISO(o.meta.date)}${sameAddr.has(o.id) ? " · gleiche Adresse" : ""}`),
+      ]))),
+      h("div", { class: "modal__actions" }, [h("button", { class: "btn btn--ghost btn--sm", onclick: close }, ["Abbrechen"])]),
+    ]);
+    backdrop.appendChild(dialog);
+    backdrop.addEventListener("click", (e) => { if (e.target === backdrop) close(); });
+    document.addEventListener("keydown", onKey);
+    document.body.appendChild(backdrop);
+  }
+
+  const SEVERITY = { "": 0, gut: 1, mittel: 2, maengel: 3 };
+
+  function viewCompare({ a, b }) {
+    let A = Store.get(a), B = Store.get(b);
+    if (!A || !B) { toast("Protokoll für den Vergleich nicht gefunden", "bad"); location.hash = "#/"; return; }
+    // „Vorher" ist das Einzugsprotokoll bzw. bei gleichem Typ das ältere Übergabedatum
+    const rank = (p) => (p.type === "einzug" ? 0 : 1);
+    if (rank(A) > rank(B) || (rank(A) === rank(B) && (A.meta.date || "") > (B.meta.date || ""))) { const t = A; A = B; B = t; }
+
+    const typeLabel = (p) => (p.type === "einzug" ? "Einzug" : "Auszug");
+    const head = h("section", { class: "masthead" }, [
+      h("div", { class: "stamp" }, "Vergleich"),
+      h("div", { class: "masthead__in" }, [
+        h("span", { class: "kicker" }, `${typeLabel(A)} ↔ ${typeLabel(B)}`),
+        h("h1", {}, addrLabel(B)),
+        h("p", {}, `Gegenüberstellung der Übergaben vom ${fmtDateISO(A.meta.date)} („Vorher") und ${fmtDateISO(B.meta.date)} („Nachher").`),
+        h("div", { class: "btn-row row no-print" }, [
+          h("a", { class: "btn btn--ghost btn--sm", href: `#/p/${A.id}` }, [`← ${typeLabel(A)} öffnen`]),
+          h("a", { class: "btn btn--ghost btn--sm", href: `#/p/${B.id}` }, [`${typeLabel(B)} öffnen →`]),
+          h("button", { class: "btn btn--primary btn--sm", onclick: () => window.print() }, ["Als PDF / Drucken"]),
+        ]),
+      ]),
+    ]);
+
+    // ---- Mängel-Bilanz ----
+    const defsA = collectDefects(A), defsB = collectDefects(B);
+    const neuB = defsB.filter((d) => d.status === "neu");
+    const defCard = h("div", { class: "card", style: "margin-bottom:18px" }, [
+      h("h2", {}, "Mängel-Bilanz"),
+      h("div", { class: "row", style: "gap:8px;margin-bottom:12px;flex-wrap:wrap" }, [
+        h("span", { class: "tag" }, `Vorher: ${defsA.length}`),
+        h("span", { class: "tag" }, `Nachher: ${defsB.length}`),
+        neuB.length ? h("span", { class: "tag tag--bad" }, `${neuB.length} neu entstanden`) : h("span", { class: "tag tag--ok" }, "keine neuen Mängel markiert"),
+      ]),
+      defsB.length ? h("table", { class: "sum-table" }, [
+        h("tr", {}, [h("th", { style: "width:22%" }, "Raum"), h("th", {}, "Mangel (Nachher)"), h("th", { style: "width:14%" }, "Status"), h("th", { style: "width:20%" }, "Verursacher")]),
+        ...defsB.map((d) => h("tr", { class: d.status === "neu" ? "is-worse" : "" }, [
+          h("td", {}, d.room), h("td", {}, d.text), h("td", {}, defectStatusCell(d.status)), h("td", {}, d.cause || "—"),
+        ])),
+      ]) : h("p", { class: "muted", style: "margin:0" }, `Im „Nachher"-Protokoll sind keine Mängel erfasst.`),
+      neuB.length ? h("p", { class: "muted", style: "margin:12px 0 0;font-size:.82rem" }, "Neu entstandene Mängel sind für die Kostenfrage relevant (wer trägt Instandstellung / Abzug von der Kaution).") : null,
+    ]);
+
+    // ---- Zähler & Verbrauch ----
+    const mA = new Map((A.meters || []).filter((m) => m.name).map((m) => [String(m.name).trim().toLowerCase(), m]));
+    const meterRows = [];
+    (B.meters || []).forEach((m) => {
+      const key = String(m.name || "").trim().toLowerCase();
+      const prev = mA.get(key); if (prev) mA.delete(key);
+      const nA = prev ? meterNum(prev.value) : null;
+      const nB = meterNum(m.value);
+      const diff = nA !== null && nB !== null ? nB - nA : null;
+      meterRows.push(h("tr", {}, [
+        h("td", {}, m.name || "—"),
+        h("td", {}, prev && prev.value !== "" ? String(prev.value) : "—"),
+        h("td", {}, m.value !== "" ? String(m.value) : "—"),
+        h("td", { class: "num" }, diff === null ? "—" : h("strong", { class: diff < 0 ? "delta--warn" : "" }, (diff > 0 ? "+" : "") + fmtNum(diff))),
+      ]));
+    });
+    mA.forEach((prev) => meterRows.push(h("tr", {}, [
+      h("td", {}, prev.name), h("td", {}, prev.value !== "" ? String(prev.value) : "—"), h("td", {}, "—"), h("td", { class: "num" }, "—"),
+    ])));
+    const meterCard = h("div", { class: "card", style: "margin-bottom:18px" }, [
+      h("h2", {}, "Zählerstände & Verbrauch"),
+      meterRows.length ? h("table", { class: "sum-table" }, [
+        h("tr", {}, [h("th", {}, "Zähler"), h("th", {}, "Vorher"), h("th", {}, "Nachher"), h("th", { style: "width:18%" }, "Differenz")]),
+        ...meterRows,
+      ]) : h("p", { class: "muted", style: "margin:0" }, "Keine Zähler erfasst."),
+      meterRows.length ? h("p", { class: "muted", style: "margin:12px 0 0;font-size:.82rem" }, "Differenz = Verbrauch zwischen den beiden Übergaben. Ein negativer Wert deutet auf einen Zählerwechsel oder Tippfehler hin.") : null,
+    ]);
+
+    // ---- Räume: Zustandsänderung ----
+    const rA = new Map((A.rooms || []).map((r) => [String(r.name || "").trim().toLowerCase(), r]));
+    const roomRows = [];
+    (B.rooms || []).forEach((r) => {
+      const key = String(r.name || "").trim().toLowerCase();
+      const prev = rA.get(key); if (prev) rA.delete(key);
+      const sA = prev ? roomStatus(prev) : null;
+      const sB = roomStatus(r);
+      let delta = null;
+      if (sA !== null && sA !== "" && sB !== "") delta = SEVERITY[sB] - SEVERITY[sA];
+      roomRows.push(h("tr", { class: delta > 0 ? "is-worse" : "" }, [
+        h("td", {}, r.name || "Raum"),
+        h("td", {}, prev ? (sA ? COND_LABEL[sA] : "unbewertet") : "—"),
+        h("td", {}, sB ? COND_LABEL[sB] : "unbewertet"),
+        h("td", {}, delta === null ? h("span", { class: "muted" }, "—")
+          : delta > 0 ? h("span", { class: "tag tag--bad" }, "verschlechtert")
+          : delta < 0 ? h("span", { class: "tag tag--ok" }, "verbessert")
+          : h("span", { class: "tag" }, "unverändert")),
+      ]));
+    });
+    rA.forEach((prev) => roomRows.push(h("tr", {}, [
+      h("td", {}, prev.name || "Raum"), h("td", {}, roomStatus(prev) ? COND_LABEL[roomStatus(prev)] : "unbewertet"), h("td", {}, "—"), h("td", {}, h("span", { class: "muted" }, "nur vorher")),
+    ])));
+    const roomCardEl = h("div", { class: "card", style: "margin-bottom:18px" }, [
+      h("h2", {}, "Räume im Vergleich"),
+      roomRows.length ? h("table", { class: "sum-table" }, [
+        h("tr", {}, [h("th", {}, "Raum"), h("th", {}, "Vorher"), h("th", {}, "Nachher"), h("th", { style: "width:18%" }, "Veränderung")]),
+        ...roomRows,
+      ]) : h("p", { class: "muted", style: "margin:0" }, "Keine Räume erfasst."),
+    ]);
+
+    // ---- Schlüssel-Bilanz ----
+    const count = (p) => (p.keys || []).reduce((n, k) => n + (parseInt(k.count) || 0), 0);
+    const kA = count(A), kB = count(B);
+    const keyCard = h("div", { class: "card" }, [
+      h("h2", {}, "Schlüssel"),
+      h("p", { style: "margin:0" }, [
+        `Vorher übergeben: ${kA} · Nachher zurückgegeben: ${kB} — `,
+        kA === kB ? h("span", { class: "tag tag--ok" }, "vollständig")
+          : h("span", { class: "tag tag--bad" }, `${Math.abs(kA - kB)} ${kA > kB ? "fehlen" : "mehr als vorher"}`),
+      ]),
+    ]);
+
+    app.append(head, defCard, meterCard, roomCardEl, keyCard);
+  }
+
   /* ============================ INFO ============================ */
+  const FAQ = [
+    ["Ist Wohnprotokoll wirklich kostenlos?", "Ja, komplett. Keine Anmeldung, kein Abo, keine versteckten Kosten. Die App läuft vollständig in deinem Browser – es gibt keinen Server, der bezahlt werden müsste."],
+    ["Wo werden meine Daten gespeichert?", "Ausschließlich lokal auf deinem Gerät (im Browser-Speicher). Nichts wird hochgeladen. Deshalb: Erstelle regelmäßig ein Backup (JSON) oder ein PDF – wenn du den Browser-Speicher löschst, sind die Daten weg."],
+    ["Ist das Protokoll rechtsgültig?", "Das Protokoll dokumentiert den Zustand der Wohnung und wird von beiden Parteien unterschrieben – das ist als Beweismittel wertvoll. Wohnprotokoll ist aber keine Rechtsberatung; im Zweifel wende dich an den Mieter- oder Hauseigentümerverband."],
+    ["Funktioniert die App offline?", `Ja. Einmal geöffnet, funktioniert alles auch ohne Internet. Auf dem Handy kannst du sie über „Zum Home-Bildschirm hinzufügen" wie eine App installieren.`],
+    ["Wie komme ich vom Einzugs- zum Auszugsprotokoll?", `Beim Anlegen eines neuen Protokolls „auf bestehendem Protokoll aufbauen" wählen: Adresse, Räume, Zähler und Schlüssel werden übernommen, erfasste Mängel gelten als „bestehend". Danach kannst du beide Protokolle vergleichen – neue Mängel und Verbrauch auf einen Blick.`],
+    ["Wie übertrage ich Protokolle auf ein anderes Gerät?", `In der Übersicht „Backup" wählen (exportiert alle Protokolle als JSON-Datei), die Datei aufs andere Gerät bringen und dort über „Import" einlesen. Einzelne Protokolle lassen sich auch direkt teilen.`],
+    ["Wie viele Fotos kann ich speichern?", "Fotos werden automatisch verkleinert und komprimiert. Der Browser-Speicher fasst etwa 5 MB – das reicht für ein normales Protokoll mit Fotos. Die Speicheranzeige in der Übersicht warnt dich, bevor es eng wird."],
+  ];
+
   function viewInfo() {
     const features = [
+      ["🧭", "Start-Assistent", "Wohnungsvorlagen (1,5 bis 4,5 Zimmer oder Haus) legen Räume, Zähler und Schlüssel automatisch an."],
+      ["🔁", "Einzug ↔ Auszug", "Auszugsprotokoll aus dem Einzug erstellen und beide vergleichen: neue Mängel, Verbrauch, Schlüssel-Bilanz."],
       ["🪟", "Räume & Mängel", "Zustand pro Raum bewerten, Mängel beschreiben und mit Fotos belegen."],
       ["📋", "Mängelübersicht", "Alle Mängel raumübergreifend auf einen Blick – mit Status (neu/bestehend) und Verursacher."],
       ["📸", "Fotos direkt erfassen", "Bilder werden automatisch komprimiert und im Protokoll gespeichert – auch für Zählerstände."],
@@ -1455,6 +1831,24 @@
         )),
       ]),
       h("div", { class: "card", style: "margin-top:24px" }, [
+        h("h2", {}, "Häufige Fragen"),
+        h("div", { class: "faq" }, FAQ.map(([q, a]) =>
+          h("details", { class: "faq__item" }, [
+            h("summary", {}, q),
+            h("p", { class: "muted", style: "margin:10px 0 4px;font-size:.92rem" }, a),
+          ])
+        )),
+      ]),
+      h("div", { class: "card", style: "margin-top:24px" }, [
+        h("h2", {}, "Tastenkürzel"),
+        h("table", { class: "kbd-table" }, [
+          h("tr", {}, [h("td", {}, [h("kbd", {}, "N")]), h("td", {}, "Neues Protokoll anlegen")]),
+          h("tr", {}, [h("td", {}, [h("kbd", {}, "/")]), h("td", {}, "Suche fokussieren (Übersicht)")]),
+          h("tr", {}, [h("td", {}, [h("kbd", {}, "?")]), h("td", {}, "Hilfe mit allen Kürzeln anzeigen")]),
+          h("tr", {}, [h("td", {}, [h("kbd", {}, "Esc")]), h("td", {}, "Menü oder Dialog schließen")]),
+        ]),
+      ]),
+      h("div", { class: "card", style: "margin-top:24px" }, [
         h("h2", {}, "Rechtlicher Hinweis"),
         h("p", { class: "muted", style: "margin:0;font-size:.9rem" }, "Wohnprotokoll ist ein Werkzeug zur Dokumentation des Wohnungszustands und ersetzt keine Rechtsberatung. Für die Vollständigkeit, Richtigkeit und Rechtsgültigkeit der erstellten Protokolle wird keine Gewähr übernommen. Maßgeblich bleiben die Vereinbarungen zwischen Mieter:in und Vermieter:in sowie die geltenden gesetzlichen Bestimmungen. Bei rechtlichen Fragen wende dich an eine fachkundige Stelle (z. B. Mieter- oder Vermieterverband)."),
       ])
@@ -1467,6 +1861,7 @@
   route("/neu", viewNew);
   route("/info", viewInfo);
   route("/p/:id", viewEditor);
+  route("/vergleich/:a/:b", viewCompare);
 
   // Globale Editor-Aktionen (Löschen) per Tastatur/Übersicht
   window.WP = { deleteCurrent, duplicate: (id) => { const c = Store.duplicate(id); if (c) { toast("Dupliziert"); navigate(); } } };

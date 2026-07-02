@@ -457,6 +457,106 @@ textarea { resize: vertical; min-height: 80px; }
   font-size: .78rem; line-height: 1.5;
 }
 
+/* ---------- Barrierefreiheit ---------- */
+.skip-link {
+  position: absolute; left: -9999px; top: 0; z-index: 300;
+  background: var(--ink); color: var(--surface); padding: 10px 16px;
+  border-radius: 0 0 var(--radius) 0; font-weight: 700; font-size: .88rem;
+}
+.skip-link:focus { left: 0; text-decoration: none; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}
+
+/* ---------- Seitenübergang ---------- */
+.view-anim { animation: viewIn .28s ease both; }
+@keyframes viewIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+/* ---------- Hero-Häkchen ---------- */
+.ticks { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 6px; }
+.ticks li { position: relative; padding-left: 26px; color: var(--ink-soft); font-size: .92rem; }
+.ticks li::before { content: "✓"; position: absolute; left: 0; top: 0; color: var(--ok); font-weight: 800; }
+
+/* ---------- Start-Assistent: Vorlagen-Kacheln ---------- */
+.tpl-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; }
+.tpl {
+  display: flex; flex-direction: column; gap: 4px; text-align: left; cursor: pointer;
+  border: 1.5px solid var(--line-strong); border-radius: var(--radius); background: var(--surface);
+  padding: 14px; font-family: var(--sans); color: var(--ink); transition: .14s;
+}
+.tpl:hover { border-color: var(--ink); }
+.tpl.active { border-color: var(--accent); box-shadow: inset 0 0 0 1.5px var(--accent); background: var(--accent-soft); }
+.tpl strong { font-family: var(--serif); font-size: 1.02rem; }
+.tpl__desc { color: var(--ink-soft); font-size: .78rem; line-height: 1.4; }
+
+.check { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-size: .88rem; font-weight: 600; color: var(--ink-soft); }
+.check input { width: 16px; height: 16px; accent-color: var(--accent); margin: 0; }
+.check:hover { color: var(--ink); }
+
+/* ---------- „Aufbauen auf"-Liste (Assistent & Vergleichs-Dialog) ---------- */
+.follow-list { display: grid; gap: 8px; }
+.follow {
+  display: grid; grid-template-columns: auto 1fr auto; gap: 4px 14px; align-items: center;
+  text-align: left; cursor: pointer; width: 100%;
+  border: 1.5px solid var(--line-strong); border-radius: var(--radius); background: var(--surface);
+  padding: 12px 14px; font-family: var(--sans); color: var(--ink); transition: .14s;
+}
+.follow:hover { border-color: var(--ink); }
+.follow .pcard__type { margin-bottom: 0; grid-row: span 2; align-self: start; }
+.follow__addr { font-family: var(--serif); font-size: .98rem; }
+.follow__sub { grid-column: 2; font-size: .8rem; }
+.follow__cta { grid-column: 3; grid-row: 1 / span 2; color: var(--accent); font-weight: 700; font-size: .82rem; white-space: nowrap; }
+@media (max-width: 560px) {
+  .follow { grid-template-columns: auto 1fr; }
+  .follow__cta { grid-column: 1 / -1; grid-row: auto; }
+}
+
+.modal--wide { max-width: 560px; }
+
+/* ---------- Tastenkürzel ---------- */
+.kbd-table { border-collapse: collapse; }
+.kbd-table td { padding: 6px 14px 6px 0; font-size: .9rem; }
+kbd {
+  display: inline-block; min-width: 26px; text-align: center;
+  font-family: var(--mono); font-size: .78rem; font-weight: 700;
+  border: 1.5px solid var(--line-strong); border-bottom-width: 3px; border-radius: var(--radius-sm);
+  background: var(--surface-2); padding: 2px 7px; color: var(--ink);
+}
+
+/* ---------- FAQ ---------- */
+.faq { display: grid; gap: 4px; }
+.faq__item { border-bottom: 1px solid var(--line); padding: 4px 0 10px; }
+.faq__item summary {
+  cursor: pointer; font-weight: 600; font-size: .95rem; padding: 8px 0;
+  list-style: none; position: relative; padding-right: 28px;
+}
+.faq__item summary::-webkit-details-marker { display: none; }
+.faq__item summary::after { content: "+"; position: absolute; right: 4px; top: 6px; color: var(--accent); font-family: var(--mono); font-size: 1.1rem; transition: transform .15s; }
+.faq__item[open] summary::after { content: "–"; }
+.faq__item summary:hover { color: var(--accent); }
+
+/* ---------- Konfetti ---------- */
+.confetti {
+  position: fixed; top: -14px; z-index: 400; width: 8px; height: 14px;
+  border-radius: 2px; pointer-events: none; opacity: .95;
+  animation: confettiFall linear forwards;
+}
+@keyframes confettiFall {
+  to { transform: translateY(105vh) rotate(720deg); opacity: .7; }
+}
+
+/* ---------- Raum-Sortierung & Vergleich ---------- */
+.icon-move { font-size: .9rem; padding: 4px 6px; }
+.icon-move:hover { background: var(--surface-2); color: var(--ink); }
+.icon-move:disabled { opacity: .25; cursor: default; }
+.icon-move:disabled:hover { background: transparent; color: var(--ink-soft); }
+
+.sum-table td.num { text-align: right; font-family: var(--mono); }
+.delta--warn { color: var(--warn); }
+.sum-table tr.is-worse td { background: var(--bad-soft); }
+
 /* ---------- Mobile / Handy-Ansicht ---------- */
 @media (max-width: 760px) {
   /* Kein horizontales Scrollen auf dem Handy */
@@ -525,6 +625,10 @@ textarea { resize: vertical; min-height: 80px; }
   .room__head { flex-wrap: wrap; }
   .room__head input.room__name { max-width: none; flex: 1 1 100%; }
   .room__meta { margin-left: 0; }
+
+  /* Breite Tabellen (Vergleich, Mängelübersicht) wischbar statt abgeschnitten */
+  .sum-table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .sum-table th, .sum-table td { padding: 7px 8px; font-size: .84rem; }
 }
 
 @media (max-width: 400px) {
@@ -533,9 +637,14 @@ textarea { resize: vertical; min-height: 80px; }
 }
 
 @media print {
-  .topbar, .footer, .toasts, .editbar, .no-print { display: none !important; }
-  body { background: #fff; background-image: none; }
+  @page { margin: 14mm; }
+  .topbar, .footer, .toasts, .editbar, .no-print, .skip-link, .confetti { display: none !important; }
+  body { background: #fff; background-image: none; color: #000; }
   .app { max-width: none; padding: 0; }
   .card, .sum-room, .disclaimer { break-inside: avoid; }
+  .summary { border: none; padding: 0; }
+  .sum-photos img { width: 150px; height: 115px; }
+  .sum-table th, .sum-table td { border-bottom-color: #ccc; }
+  a { color: inherit; text-decoration: none; }
   .disclaimer { background: #fff; }
 }

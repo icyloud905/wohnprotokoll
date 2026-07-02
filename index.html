@@ -44,6 +44,46 @@
   }
   </script>
 
+  <!-- Structured Data: FAQ (gleiche Inhalte wie auf der Info-Seite) -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "Ist Wohnprotokoll wirklich kostenlos?",
+        "acceptedAnswer": { "@type": "Answer", "text": "Ja, komplett. Keine Anmeldung, kein Abo, keine versteckten Kosten. Die App läuft vollständig im Browser – es gibt keinen Server." }
+      },
+      {
+        "@type": "Question",
+        "name": "Wo werden meine Daten gespeichert?",
+        "acceptedAnswer": { "@type": "Answer", "text": "Ausschließlich lokal auf deinem Gerät im Browser-Speicher. Nichts wird hochgeladen. Regelmäßige Backups als JSON oder PDF werden empfohlen." }
+      },
+      {
+        "@type": "Question",
+        "name": "Ist das Protokoll rechtsgültig?",
+        "acceptedAnswer": { "@type": "Answer", "text": "Das Protokoll dokumentiert den Zustand der Wohnung und wird von beiden Parteien unterschrieben – als Beweismittel wertvoll. Es ersetzt aber keine Rechtsberatung." }
+      },
+      {
+        "@type": "Question",
+        "name": "Funktioniert die App offline?",
+        "acceptedAnswer": { "@type": "Answer", "text": "Ja. Einmal geöffnet, funktioniert alles auch ohne Internet. Auf dem Handy lässt sie sich wie eine App installieren." }
+      },
+      {
+        "@type": "Question",
+        "name": "Wie komme ich vom Einzugs- zum Auszugsprotokoll?",
+        "acceptedAnswer": { "@type": "Answer", "text": "Beim Anlegen „auf bestehendem Protokoll aufbauen" wählen: Adresse, Räume, Zähler und Schlüssel werden übernommen, Mängel gelten als bestehend. Danach lassen sich beide Protokolle vergleichen – neue Mängel und Verbrauch auf einen Blick." }
+      },
+      {
+        "@type": "Question",
+        "name": "Wie übertrage ich Protokolle auf ein anderes Gerät?",
+        "acceptedAnswer": { "@type": "Answer", "text": "In der Übersicht ein Backup als JSON-Datei exportieren und auf dem anderen Gerät importieren. Einzelne Protokolle lassen sich auch direkt teilen." }
+      }
+    ]
+  }
+  </script>
+
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='%23b3502d'/><path d='M8 22V13l8-5 8 5v9' fill='none' stroke='%23fbf9f4' stroke-width='2'/><path d='M12 22v-6h8v6' fill='none' stroke='%23fbf9f4' stroke-width='2'/></svg>" />
   <link rel="apple-touch-icon" href="/icon.svg" />
 
@@ -56,6 +96,8 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
+  <a class="skip-link" href="#app">Zum Inhalt springen</a>
+
   <!-- ============ TOPBAR ============ -->
   <header class="topbar">
     <div class="topbar__inner">
@@ -95,11 +137,13 @@
       auf deinem Gerät gespeichert.
     </p>
     <ul>
+      <li>Wohnungsvorlagen: Räume, Zähler und Schlüssel in Sekunden vorbereitet</li>
       <li>Räume und ihren Zustand dokumentieren</li>
       <li>Mängel mit Fotos festhalten</li>
       <li>Zählerstände für Strom, Wasser und Gas erfassen</li>
       <li>Schlüsselübergabe protokollieren</li>
       <li>Digital unterschreiben und als PDF exportieren</li>
+      <li>Einzug und Auszug vergleichen: neue Mängel und Verbrauch auf einen Blick</li>
     </ul>
     <p>Kostenlos · keine Cookies · nur anonyme Aufrufstatistik.</p>
   </main>
